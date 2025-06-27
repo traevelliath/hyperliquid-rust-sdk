@@ -1,25 +1,26 @@
-use crate::{consts::*, prelude::*, Error};
-use chrono::prelude::Utc;
+use crate::consts::*;
+
 use lazy_static::lazy_static;
-use log::info;
-use rand::{thread_rng, Rng};
 use std::sync::atomic::{AtomicU64, Ordering};
 use uuid::Uuid;
 
 fn now_timestamp_ms() -> u64 {
-    let now = Utc::now();
-    now.timestamp_millis() as u64
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("system time to be after Unix epoch")
+        .as_millis() as u64
 }
 
 pub(crate) fn next_nonce() -> u64 {
     let nonce = CUR_NONCE.fetch_add(1, Ordering::Relaxed);
     let now_ms = now_timestamp_ms();
     if nonce > now_ms + 1000 {
-        info!("nonce progressed too far ahead {nonce} {now_ms}");
+        tracing::info!("nonce progressed too far ahead {nonce} {now_ms}");
     }
     // more than 300 seconds behind
     if nonce + 300000 < now_ms {
         CUR_NONCE.fetch_max(now_ms + 1, Ordering::Relaxed);
+
         return now_ms;
     }
     nonce
@@ -35,29 +36,17 @@ pub(crate) fn float_to_string_for_hashing(x: f64) -> String {
     if x.ends_with('.') {
         x.pop();
     }
-    if x == "-0" {
-        "0".to_string()
-    } else {
-        x
-    }
+    if x == "-0" { "0".to_string() } else { x }
 }
 
 pub(crate) fn uuid_to_hex_string(uuid: Uuid) -> String {
     let hex_string = uuid
         .as_bytes()
         .iter()
-        .map(|byte| format!("{:02x}", byte))
+        .map(|byte| format!("{byte:02x}"))
         .collect::<Vec<String>>()
         .join("");
-    format!("0x{}", hex_string)
-}
-
-pub(crate) fn generate_random_key() -> Result<[u8; 32]> {
-    let mut arr = [0u8; 32];
-    thread_rng()
-        .try_fill(&mut arr[..])
-        .map_err(|e| Error::RandGen(e.to_string()))?;
-    Ok(arr)
+    format!("0x{hex_string}")
 }
 
 pub fn truncate_float(float: f64, decimals: u32, round_up: bool) -> f64 {
@@ -77,7 +66,7 @@ pub fn bps_diff(x: f64, y: f64) -> u16 {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BaseUrl {
     Localhost,
     Testnet,
@@ -85,17 +74,51 @@ pub enum BaseUrl {
 }
 
 impl BaseUrl {
-    pub(crate) fn get_url(&self) -> String {
+    pub(crate) fn get_url(&self) -> url::Url {
         match self {
-            BaseUrl::Localhost => LOCAL_API_URL.to_string(),
-            BaseUrl::Mainnet => MAINNET_API_URL.to_string(),
-            BaseUrl::Testnet => TESTNET_API_URL.to_string(),
+            BaseUrl::Localhost => url::Url::parse(LOCAL_API_URL).unwrap(),
+            BaseUrl::Mainnet => url::Url::parse(MAINNET_API_URL).unwrap(),
+            BaseUrl::Testnet => url::Url::parse(TESTNET_API_URL).unwrap(),
+        }
+    }
+
+    pub(crate) fn get_ws_url(&self) -> url::Url {
+        match self {
+            BaseUrl::Mainnet => url::Url::parse(MAINNET_WS_URL).unwrap(),
+            BaseUrl::Testnet => url::Url::parse(TESTNET_WS_URL).unwrap(),
+            _ => panic!("Unsupported network"),
         }
     }
 }
 
 lazy_static! {
     static ref CUR_NONCE: AtomicU64 = AtomicU64::new(now_timestamp_ms());
+}
+
+/// Utility function for graceful shutdown handling in websocket examples
+pub async fn shutdown_signal() {
+    use tokio::signal;
+
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }
 
 #[cfg(test)]

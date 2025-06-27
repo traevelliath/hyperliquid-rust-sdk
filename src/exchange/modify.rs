@@ -1,4 +1,4 @@
-use super::{order::OrderRequest, ClientOrderRequest};
+use super::{ClientOrderRequest, order::OrderRequest};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]

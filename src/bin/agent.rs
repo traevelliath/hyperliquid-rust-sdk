@@ -1,33 +1,31 @@
-use log::info;
+use alloy::signers::local::PrivateKeySigner;
 
-use ethers::signers::{LocalWallet, Signer};
-use hyperliquid_rust_sdk::{BaseUrl, ClientLimit, ClientOrder, ClientOrderRequest, ExchangeClient};
+use hyperliquid_sdk::{ClientLimit, ClientOrder, ClientOrderRequest, ExchangeClient, NetworkType};
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
     // Key was randomly generated for testing and shouldn't be used with any real funds
-    let wallet: LocalWallet = "e908f86dbb4d55ac876378565aafeabc187f6690f046459397b17d9b9a19688e"
-        .parse()
-        .unwrap();
+    let signer: PrivateKeySigner =
+        "e908f86dbb4d55ac876378565aafeabc187f6690f046459397b17d9b9a19688e"
+            .parse()
+            .unwrap();
 
-    let exchange_client = ExchangeClient::new(None, wallet, Some(BaseUrl::Testnet), None, None)
+    let exchange_client = ExchangeClient::new(signer, NetworkType::Testnet, None, None)
         .await
         .unwrap();
-
     /*
         Create a new wallet with the agent.
         This agent cannot transfer or withdraw funds, but can for example place orders.
     */
-
     let (private_key, response) = exchange_client.approve_agent(None).await.unwrap();
-    info!("Agent creation response: {response:?}");
+    tracing::info!("Agent creation response: {response:?}");
 
-    let wallet: LocalWallet = private_key.parse().unwrap();
+    let wallet: PrivateKeySigner = PrivateKeySigner::from_signing_key(private_key);
 
-    info!("Agent address: {:?}", wallet.address());
+    tracing::info!("Agent address: {:?}", wallet.address());
 
-    let exchange_client = ExchangeClient::new(None, wallet, Some(BaseUrl::Testnet), None, None)
+    let exchange_client = ExchangeClient::new(wallet, NetworkType::Testnet, None, None)
         .await
         .unwrap();
 
@@ -45,5 +43,5 @@ async fn main() {
 
     let response = exchange_client.order(order, None).await.unwrap();
 
-    info!("Order placed: {response:?}");
+    tracing::info!("Order placed: {response:?}");
 }

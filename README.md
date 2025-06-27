@@ -1,6 +1,8 @@
 # hyperliquid-rust-sdk
 
-SDK for Hyperliquid API trading with Rust.
+Improved and modernized SDK for Hyperliquid API trading with Rust.
+Implemented more performant websocket connection with full type-safety.
+Changes made to migrate from old `ethers` crate to `alloy`.
 
 ## Usage Examples
 

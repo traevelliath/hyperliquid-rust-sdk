@@ -1,37 +1,47 @@
-use log::info;
-
-use hyperliquid_rust_sdk::{BaseUrl, InfoClient, Message, Subscription};
-use tokio::{
-    spawn,
-    sync::mpsc::unbounded_channel,
-    time::{sleep, Duration},
-};
+use hyperliquid_sdk::{InfoClient, Message, NetworkType, Subscription, shutdown_signal};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
-
-    let mut info_client = InfoClient::new(None, Some(BaseUrl::Testnet)).await.unwrap();
-
-    let (sender, mut receiver) = unbounded_channel();
-    let subscription_id = info_client
-        .subscribe(
-            Subscription::L2Book {
-                coin: "ETH".to_string(),
-            },
-            sender,
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .event_format(tracing_subscriber::fmt::format().compact())
+                .with_timer(tracing_subscriber::fmt::time::LocalTime::rfc_3339()),
         )
+        .with(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(tracing::Level::DEBUG.into())
+                .from_env_lossy(),
+        )
+        .init();
+
+    let mut info_client = InfoClient::new(NetworkType::Mainnet).await.unwrap();
+
+    let mut receiver = info_client
+        .subscribe(Subscription::L2Book {
+            coin: "ETH".to_string(),
+        })
         .await
         .unwrap();
 
-    spawn(async move {
-        sleep(Duration::from_secs(30)).await;
-        info!("Unsubscribing from l2 book data");
-        info_client.unsubscribe(subscription_id).await.unwrap()
-    });
-
-    // This loop ends when we unsubscribe
-    while let Some(Message::L2Book(l2_book)) = receiver.recv().await {
-        info!("Received l2 book data: {l2_book:?}");
+    loop {
+        tokio::select! {
+            _ = shutdown_signal() => {
+                break;
+            }
+            Ok(m) = receiver.recv() => {
+                if let Message::L2Book(l2_book) = m {
+                    tracing::info!(
+                        coin = %l2_book.data.coin,
+                        time = %l2_book.data.time,
+                        levels = ?l2_book.data.levels,
+                        "NEW L2 BOOK:"
+                    );
+                }
+            }
+        }
     }
+
+    info_client.shutdown().await;
 }

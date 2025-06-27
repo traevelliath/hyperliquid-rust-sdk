@@ -1,30 +1,46 @@
-use hyperliquid_rust_sdk::{BaseUrl, InfoClient, Message, Subscription};
-use log::info;
-use tokio::{
-    spawn,
-    sync::mpsc::unbounded_channel,
-    time::{sleep, Duration},
-};
+use hyperliquid_sdk::{InfoClient, Message, NetworkType, Subscription, shutdown_signal};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
-    let mut info_client = InfoClient::new(None, Some(BaseUrl::Testnet)).await.unwrap();
-    let coin = "BTC".to_string();
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .event_format(tracing_subscriber::fmt::format().compact())
+                .with_timer(tracing_subscriber::fmt::time::LocalTime::rfc_3339()),
+        )
+        .with(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(tracing::Level::DEBUG.into())
+                .from_env_lossy(),
+        )
+        .init();
 
-    let (sender, mut receiver) = unbounded_channel();
-    let subscription_id = info_client
-        .subscribe(Subscription::ActiveAssetCtx { coin }, sender)
+    let mut info_client = InfoClient::new(NetworkType::Mainnet).await.unwrap();
+
+    let mut receiver = info_client
+        .subscribe(Subscription::ActiveAssetCtx {
+            coin: "ETH".to_string(),
+        })
         .await
         .unwrap();
 
-    spawn(async move {
-        sleep(Duration::from_secs(30)).await;
-        info!("Unsubscribing from active asset ctx");
-        info_client.unsubscribe(subscription_id).await.unwrap()
-    });
-
-    while let Some(Message::ActiveAssetCtx(active_asset_ctx)) = receiver.recv().await {
-        info!("Received active asset ctx: {active_asset_ctx:?}");
+    loop {
+        tokio::select! {
+            _ = shutdown_signal() => {
+                break;
+            }
+            Ok(m) = receiver.recv() => {
+                if let Message::ActiveAssetCtx(active_asset_ctx) = m {
+                    tracing::info!(
+                        coin = %active_asset_ctx.data.coin,
+                        ctx = ?active_asset_ctx.data.ctx,
+                        "NEW ACTIVE ASSET CTX:"
+                    );
+                }
+            }
+        }
     }
+
+    info_client.shutdown().await;
 }

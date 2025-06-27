@@ -1,16 +1,16 @@
-use ethers::signers::LocalWallet;
-use hyperliquid_rust_sdk::{BaseUrl, ExchangeClient};
-use log::info;
+use alloy::signers::local::PrivateKeySigner;
+use hyperliquid_sdk::{ExchangeClient, NetworkType};
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
     // Key was randomly generated for testing and shouldn't be used with any real funds
-    let wallet: LocalWallet = "e908f86dbb4d55ac876378565aafeabc187f6690f046459397b17d9b9a19688e"
-        .parse()
-        .unwrap();
+    let wallet: PrivateKeySigner =
+        "e908f86dbb4d55ac876378565aafeabc187f6690f046459397b17d9b9a19688e"
+            .parse()
+            .unwrap();
 
-    let exchange_client = ExchangeClient::new(None, wallet, Some(BaseUrl::Testnet), None, None)
+    let exchange_client = ExchangeClient::new(wallet, NetworkType::Testnet, None, None)
         .await
         .unwrap();
 
@@ -30,5 +30,6 @@ async fn main() {
         )
         .await
         .unwrap();
-    info!("Vault transfer result: {res:?}");
+
+    tracing::info!("Vault transfer result: {res:?}");
 }

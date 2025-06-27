@@ -1,21 +1,21 @@
-use ethers::signers::LocalWallet;
-use log::info;
+use alloy::signers::local::PrivateKeySigner;
 
-use hyperliquid_rust_sdk::{
-    BaseUrl, ExchangeClient, ExchangeDataStatus, ExchangeResponseStatus, MarketCloseParams,
-    MarketOrderParams,
+use hyperliquid_sdk::{
+    ExchangeClient, ExchangeDataStatus, ExchangeResponseStatus, MarketCloseParams,
+    MarketOrderParams, NetworkType,
 };
 use std::{thread::sleep, time::Duration};
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
     // Key was randomly generated for testing and shouldn't be used with any real funds
-    let wallet: LocalWallet = "e908f86dbb4d55ac876378565aafeabc187f6690f046459397b17d9b9a19688e"
-        .parse()
-        .unwrap();
+    let wallet: PrivateKeySigner =
+        "e908f86dbb4d55ac876378565aafeabc187f6690f046459397b17d9b9a19688e"
+            .parse()
+            .unwrap();
 
-    let exchange_client = ExchangeClient::new(None, wallet, Some(BaseUrl::Testnet), None, None)
+    let exchange_client = ExchangeClient::new(wallet, NetworkType::Testnet, None, None)
         .await
         .unwrap();
 
@@ -34,7 +34,7 @@ async fn main() {
         .market_open(market_open_params)
         .await
         .unwrap();
-    info!("Market open order placed: {response:?}");
+    tracing::info!("Market open order placed: {response:?}");
 
     let response = match response {
         ExchangeResponseStatus::Ok(exchange_response) => exchange_response,
@@ -42,8 +42,8 @@ async fn main() {
     };
     let status = response.data.unwrap().statuses[0].clone();
     match status {
-        ExchangeDataStatus::Filled(order) => info!("Order filled: {order:?}"),
-        ExchangeDataStatus::Resting(order) => info!("Order resting: {order:?}"),
+        ExchangeDataStatus::Filled(order) => tracing::info!("Order filled: {order:?}"),
+        ExchangeDataStatus::Resting(order) => tracing::info!("Order resting: {order:?}"),
         _ => panic!("Unexpected status: {status:?}"),
     };
 
@@ -64,7 +64,7 @@ async fn main() {
         .market_close(market_close_params)
         .await
         .unwrap();
-    info!("Market close order placed: {response:?}");
+    tracing::info!("Market close order placed: {response:?}");
 
     let response = match response {
         ExchangeResponseStatus::Ok(exchange_response) => exchange_response,
@@ -72,8 +72,8 @@ async fn main() {
     };
     let status = response.data.unwrap().statuses[0].clone();
     match status {
-        ExchangeDataStatus::Filled(order) => info!("Close order filled: {order:?}"),
-        ExchangeDataStatus::Resting(order) => info!("Close order resting: {order:?}"),
+        ExchangeDataStatus::Filled(order) => tracing::info!("Close order filled: {order:?}"),
+        ExchangeDataStatus::Resting(order) => tracing::info!("Close order resting: {order:?}"),
         _ => panic!("Unexpected status: {status:?}"),
     };
 }

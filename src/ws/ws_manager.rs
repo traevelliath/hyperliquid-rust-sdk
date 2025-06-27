@@ -1,495 +1,432 @@
-use crate::{
-    prelude::*,
-    ws::message_types::{AllMids, Bbo, Candle, L2Book, OrderUpdates, Trades, User},
-    ActiveAssetCtx, ActiveAssetData, Error, Notification, UserFills, UserFundings,
-    UserNonFundingLedgerUpdates, WebData2,
-};
-use futures_util::{stream::SplitSink, SinkExt, StreamExt};
-use log::{error, info, warn};
-use serde::{Deserialize, Serialize};
-use std::{
-    borrow::BorrowMut,
-    collections::HashMap,
-    ops::DerefMut,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    time::Duration,
-};
-use tokio::{
-    net::TcpStream,
-    spawn,
-    sync::{mpsc::UnboundedSender, Mutex},
-    time,
-};
-use tokio_tungstenite::{
-    connect_async,
-    tungstenite::{self, protocol},
-    MaybeTlsStream, WebSocketStream,
-};
-
-use ethers::types::H160;
-
-use super::ActiveSpotAssetCtx;
-
-#[derive(Debug)]
-struct SubscriptionData {
-    sending_channel: UnboundedSender<Message>,
-    subscription_id: u32,
-    id: String,
-}
-#[derive(Debug)]
-pub(crate) struct WsManager {
-    stop_flag: Arc<AtomicBool>,
-    writer: Arc<Mutex<SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, protocol::Message>>>,
-    subscriptions: Arc<Mutex<HashMap<String, Vec<SubscriptionData>>>>,
-    subscription_id: u32,
-    subscription_identifiers: HashMap<u32, String>,
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
+pub enum Interval {
+    #[serde(rename = "1m")]
+    OneMinute,
+    #[serde(rename = "3m")]
+    ThreeMinutes,
+    #[serde(rename = "5m")]
+    FiveMinutes,
+    #[serde(rename = "15m")]
+    FifteenMinutes,
+    #[serde(rename = "30m")]
+    ThirtyMinutes,
+    #[serde(rename = "1h")]
+    OneHour,
+    #[serde(rename = "2h")]
+    TwoHours,
+    #[serde(rename = "4h")]
+    FourHours,
+    #[serde(rename = "8h")]
+    EightHours,
+    #[serde(rename = "12h")]
+    TwelveHours,
+    #[serde(rename = "1d")]
+    OneDay,
+    #[serde(rename = "3d")]
+    ThreeDays,
+    #[serde(rename = "1w")]
+    OneWeek,
+    #[serde(rename = "1M")]
+    OneMonth,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
 #[serde(tag = "type")]
 #[serde(rename_all = "camelCase")]
 pub enum Subscription {
     AllMids,
-    Notification { user: H160 },
-    WebData2 { user: H160 },
-    Candle { coin: String, interval: String },
-    L2Book { coin: String },
-    Trades { coin: String },
-    OrderUpdates { user: H160 },
-    UserEvents { user: H160 },
-    UserFills { user: H160 },
-    UserFundings { user: H160 },
-    UserNonFundingLedgerUpdates { user: H160 },
-    ActiveAssetCtx { coin: String },
-    ActiveAssetData { user: H160, coin: String },
-    Bbo { coin: String },
+    Notification {
+        user: alloy::primitives::Address,
+    },
+    WebData2 {
+        user: alloy::primitives::Address,
+    },
+    Candle {
+        coin: String,
+        interval: Interval,
+    },
+    L2Book {
+        coin: String,
+    },
+    Trades {
+        coin: String,
+    },
+    OrderUpdates {
+        user: alloy::primitives::Address,
+    },
+    UserEvents {
+        user: alloy::primitives::Address,
+    },
+    UserFills {
+        user: alloy::primitives::Address,
+    },
+    UserFundings {
+        user: alloy::primitives::Address,
+    },
+    UserNonFundingLedgerUpdates {
+        user: alloy::primitives::Address,
+    },
+    ActiveAssetCtx {
+        coin: String,
+    },
+    ActiveAssetData {
+        user: alloy::primitives::Address,
+        coin: String,
+    },
+    Bbo {
+        coin: String,
+    },
 }
 
-#[derive(Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, Debug)]
+#[serde(rename_all = "lowercase")]
+enum Method {
+    Subscribe,
+    Unsubscribe,
+}
+
+impl Subscription {
+    fn into_frame(self, method: Method) -> fastwebsockets::Frame<'static> {
+        let json = serde_json::json!({
+            "method": method,
+            "subscription": self,
+        });
+
+        fastwebsockets::Frame::text(fastwebsockets::Payload::Owned(
+            json.to_string().into_bytes(),
+        ))
+    }
+}
+
+#[derive(serde::Deserialize, Clone, Debug)]
 #[serde(tag = "channel")]
 #[serde(rename_all = "camelCase")]
 pub enum Message {
     NoData,
     HyperliquidError(String),
-    AllMids(AllMids),
-    Trades(Trades),
-    L2Book(L2Book),
-    User(User),
-    UserFills(UserFills),
-    Candle(Candle),
+    AllMids(crate::ws::message_types::AllMids),
+    Trades(crate::ws::message_types::Trades),
+    L2Book(crate::ws::message_types::L2Book),
+    User(crate::ws::message_types::User),
+    UserFills(crate::UserFills),
+    Candle(crate::ws::message_types::Candle),
     SubscriptionResponse,
-    OrderUpdates(OrderUpdates),
-    UserFundings(UserFundings),
-    UserNonFundingLedgerUpdates(UserNonFundingLedgerUpdates),
-    Notification(Notification),
-    WebData2(WebData2),
-    ActiveAssetCtx(ActiveAssetCtx),
-    ActiveAssetData(ActiveAssetData),
-    ActiveSpotAssetCtx(ActiveSpotAssetCtx),
-    Bbo(Bbo),
+    OrderUpdates(crate::ws::message_types::OrderUpdates),
+    UserFundings(crate::UserFundings),
+    UserNonFundingLedgerUpdates(crate::UserNonFundingLedgerUpdates),
+    Notification(crate::Notification),
+    WebData2(crate::WebData2),
+    ActiveAssetCtx(crate::ActiveAssetCtx),
+    ActiveAssetData(crate::ws::message_types::ActiveAssetData),
+    ActiveSpotAssetCtx(crate::ws::message_types::ActiveSpotAssetCtx),
+    Bbo(crate::ws::message_types::Bbo),
     Pong,
 }
 
-#[derive(Serialize)]
-pub(crate) struct SubscriptionSendData<'a> {
-    method: &'static str,
-    subscription: &'a serde_json::Value,
-}
-
-#[derive(Serialize)]
-pub(crate) struct Ping {
-    method: &'static str,
+#[derive(Debug)]
+pub(crate) struct WsManager {
+    response_tx: tokio::sync::broadcast::Sender<Message>,
+    subscription_tx: tokio::sync::mpsc::Sender<(Subscription, Method)>,
+    shutdown_tx: tokio::sync::oneshot::Sender<()>,
+    task: tokio::task::JoinHandle<()>,
+    subscriptions: std::sync::Arc<scc::HashMap<Subscription, ()>>,
 }
 
 impl WsManager {
     const SEND_PING_INTERVAL: u64 = 50;
+    const MAX_RECONNECT_ATTEMPTS: u64 = 10;
 
-    pub(crate) async fn new(url: String, reconnect: bool) -> Result<WsManager> {
-        let stop_flag = Arc::new(AtomicBool::new(false));
+    /// Create a new WebSocket manager.
+    ///
+    /// Returns a WebSocket manager that can be used to subscribe to and unsubscribe from subscription events.
+    ///
+    /// Returns an error if the WebSocket connection cannot be established.
+    pub(crate) async fn new(ws_url: url::Url) -> Result<Self, crate::Error> {
+        let mut ws = Self::connect(&ws_url).await?;
+        let (response_tx, _) = tokio::sync::broadcast::channel::<Message>(100);
 
-        let (writer, mut reader) = Self::connect(&url).await?.split();
-        let writer = Arc::new(Mutex::new(writer));
+        let (shutdown_tx, mut shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let (subscription_tx, mut subscription_rx) =
+            tokio::sync::mpsc::channel::<(Subscription, Method)>(100);
+        let subscriptions = std::sync::Arc::new(scc::HashMap::<Subscription, ()>::new());
 
-        let subscriptions_map: HashMap<String, Vec<SubscriptionData>> = HashMap::new();
-        let subscriptions = Arc::new(Mutex::new(subscriptions_map));
-        let subscriptions_copy = Arc::clone(&subscriptions);
+        let response_tx1 = response_tx.clone();
+        let subscription_tx1 = subscription_tx.clone();
+        let subscriptions1 = subscriptions.clone();
+        let task = tokio::spawn(async move {
+            let mut heartbeat_interval =
+                tokio::time::interval(std::time::Duration::from_secs(Self::SEND_PING_INTERVAL));
+            heartbeat_interval.tick().await;
 
-        {
-            let writer = writer.clone();
-            let stop_flag = Arc::clone(&stop_flag);
-            let reader_fut = async move {
-                while !stop_flag.load(Ordering::Relaxed) {
-                    if let Some(data) = reader.next().await {
-                        if let Err(err) =
-                            WsManager::parse_and_send_data(data, &subscriptions_copy).await
-                        {
-                            error!("Error processing data received by WsManager reader: {err}");
+            let mut reconnect = false;
+            loop {
+                tokio::select! {
+                    _ = &mut shutdown_rx => {
+                        tracing::info!("Shutting down...");
+                        if let Err(e) = ws.write_frame(fastwebsockets::Frame::close(1000, b"bye")).await {
+                            tracing::error!("Failed to send close frame: {}", e);
                         }
-                    } else {
-                        warn!("WsManager disconnected");
-                        if let Err(err) = WsManager::send_to_all_subscriptions(
-                            &subscriptions_copy,
-                            Message::NoData,
-                        )
-                        .await
-                        {
-                            warn!("Error sending disconnection notification err={err}");
-                        }
-                        if reconnect {
-                            // Always sleep for 1 second before attempting to reconnect so it does not spin during reconnecting. This could be enhanced with exponential backoff.
-                            tokio::time::sleep(Duration::from_secs(1)).await;
-                            info!("WsManager attempting to reconnect");
-                            match Self::connect(&url).await {
-                                Ok(ws) => {
-                                    let (new_writer, new_reader) = ws.split();
-                                    reader = new_reader;
-                                    let mut writer_guard = writer.lock().await;
-                                    *writer_guard = new_writer;
-                                    for (identifier, v) in subscriptions_copy.lock().await.iter() {
-                                        // TODO should these special keys be removed and instead use the simpler direct identifier mapping?
-                                        if identifier.eq("userEvents")
-                                            || identifier.eq("orderUpdates")
-                                        {
-                                            for subscription_data in v {
-                                                if let Err(err) = Self::subscribe(
-                                                    writer_guard.deref_mut(),
-                                                    &subscription_data.id,
-                                                )
-                                                .await
-                                                {
-                                                    error!(
-                                                        "Could not resubscribe {identifier}: {err}"
-                                                    );
-                                                }
-                                            }
-                                        } else if let Err(err) =
-                                            Self::subscribe(writer_guard.deref_mut(), identifier)
-                                                .await
-                                        {
-                                            error!("Could not resubscribe correctly {identifier}: {err}");
-                                        }
-                                    }
-                                    info!("WsManager reconnect finished");
-                                }
-                                Err(err) => error!("Could not connect to websocket {err}"),
-                            }
-                        } else {
-                            error!("WsManager reconnection disabled. Will not reconnect and exiting reader task.");
+
+                        break;
+                    }
+                    _ = heartbeat_interval.tick() => {
+                        let ping_message = serde_json::json!({
+                            "method": "ping"
+                        });
+                        let ping_frame = fastwebsockets::Frame::text(
+                            fastwebsockets::Payload::Owned(ping_message.to_string().into_bytes())
+                        );
+                        if let Err(e) = ws.write_frame(ping_frame).await {
+                            tracing::error!("Failed to send heartbeat ping: {}", e);
+
                             break;
                         }
+                        tracing::debug!("Sent heartbeat ping");
                     }
-                }
-                warn!("ws message reader task stopped");
-            };
-            spawn(reader_fut);
-        }
+                    Some((subscription, method)) = subscription_rx.recv() => {
+                        let frame = subscription.into_frame(method);
+                        if let Err(e) = ws.write_frame(frame).await {
+                            tracing::error!("Failed to send subscription frame: {}", e);
+                        }
 
-        {
-            let stop_flag = Arc::clone(&stop_flag);
-            let writer = Arc::clone(&writer);
-            let ping_fut = async move {
-                while !stop_flag.load(Ordering::Relaxed) {
-                    match serde_json::to_string(&Ping { method: "ping" }) {
-                        Ok(payload) => {
-                            let mut writer = writer.lock().await;
-                            if let Err(err) = writer.send(protocol::Message::Text(payload)).await {
-                                error!("Error pinging server: {err}")
+                        tracing::debug!("Sent subscription frame");
+                    }
+                    frame = ws.read_frame() => {
+                        match frame {
+                            Ok(frame) => {
+                                heartbeat_interval.reset();
+
+                                match frame.opcode {
+                                    fastwebsockets::OpCode::Close => {
+                                        tracing::info!("WebSocket connection closed");
+
+                                        break;
+                                    }
+                                    fastwebsockets::OpCode::Text => {
+                                        let text = String::from_utf8_lossy(&frame.payload);
+                                        let message = match serde_json::from_str::<Message>(&text) {
+                                            Ok(msg) => msg,
+                                            Err(e) => {
+                                                tracing::error!("Failed to parse message: {}", e);
+
+                                                continue;
+                                            }
+                                        };
+
+                                        if let Err(e) = response_tx1.send(message) {
+                                            tracing::error!("Failed to send message to response channel: {}", e);
+                                        }
+                                    }
+                                    _ => {
+                                        tracing::debug!("Received frame with opcode: {:?}", frame.opcode);
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to read frame: {}", e);
+                                if let Err(e) = response_tx1.send(Message::NoData) {
+                                    tracing::error!("Failed to send message to response channel: {}", e);
+                                }
+                                reconnect = true;
                             }
                         }
-                        Err(err) => error!("Error serializing ping message: {err}"),
                     }
-                    time::sleep(Duration::from_secs(Self::SEND_PING_INTERVAL)).await;
                 }
-                warn!("ws ping task stopped");
-            };
-            spawn(ping_fut);
-        }
 
-        Ok(WsManager {
-            stop_flag,
-            writer,
+                if reconnect {
+                    tracing::info!("Reconnecting...");
+                    let mut attempts_made = 0;
+                    loop {
+                        attempts_made += 1;
+                        if attempts_made > Self::MAX_RECONNECT_ATTEMPTS {
+                            tracing::error!(
+                                "Failed to reconnect after {} attempts",
+                                Self::MAX_RECONNECT_ATTEMPTS
+                            );
+
+                            return;
+                        }
+
+                        match Self::connect(&ws_url).await {
+                            Ok(conn) => {
+                                ws = conn;
+                                reconnect = false;
+
+                                let mut iter = subscriptions1.first_entry_async().await;
+                                while let Some(entry) = iter {
+                                    if let Err(e) = subscription_tx1
+                                        .send((entry.key().clone(), Method::Subscribe))
+                                        .await
+                                    {
+                                        tracing::error!(
+                                            "Failed to send subscription to subscription channel: {}",
+                                            e
+                                        );
+                                    }
+
+                                    iter = entry.next_async().await;
+                                }
+
+                                break;
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to reconnect: {}", e);
+                                let delay = std::cmp::min(60, 1 << attempts_made);
+                                tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        Ok(Self {
+            response_tx,
+            subscription_tx,
+            shutdown_tx,
+            task,
             subscriptions,
-            subscription_id: 0,
-            subscription_identifiers: HashMap::new(),
         })
     }
 
-    async fn connect(url: &str) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>> {
-        Ok(connect_async(url)
+    /// Subscribe to a subscription event.
+    ///
+    /// Returns a receiver that will receive messages from the subscription.
+    ///
+    /// The receiver will be closed when the subscription is closed.
+    /// Returns an error if the subscription already exists.
+    pub(crate) async fn subscribe(
+        &mut self,
+        subscription: Subscription,
+    ) -> Result<tokio::sync::broadcast::Receiver<Message>, crate::Error> {
+        self.subscriptions
+            .insert_async(subscription.clone(), ())
             .await
-            .map_err(|e| Error::Websocket(e.to_string()))?
-            .0)
+            .map_err(|_| crate::Error::SubscriptionAlreadyExists)?;
+        let receiver = self
+            .send_subscription_data(subscription, Method::Subscribe)
+            .await;
+
+        Ok(receiver)
     }
 
-    fn get_identifier(message: &Message) -> Result<String> {
-        match message {
-            Message::AllMids(_) => serde_json::to_string(&Subscription::AllMids)
-                .map_err(|e| Error::JsonParse(e.to_string())),
-            Message::User(_) => Ok("userEvents".to_string()),
-            Message::UserFills(fills) => serde_json::to_string(&Subscription::UserFills {
-                user: fills.data.user,
-            })
-            .map_err(|e| Error::JsonParse(e.to_string())),
-            Message::Trades(trades) => {
-                if trades.data.is_empty() {
-                    Ok(String::default())
-                } else {
-                    serde_json::to_string(&Subscription::Trades {
-                        coin: trades.data[0].coin.clone(),
-                    })
-                    .map_err(|e| Error::JsonParse(e.to_string()))
-                }
-            }
-            Message::L2Book(l2_book) => serde_json::to_string(&Subscription::L2Book {
-                coin: l2_book.data.coin.clone(),
-            })
-            .map_err(|e| Error::JsonParse(e.to_string())),
-            Message::Candle(candle) => serde_json::to_string(&Subscription::Candle {
-                coin: candle.data.coin.clone(),
-                interval: candle.data.interval.clone(),
-            })
-            .map_err(|e| Error::JsonParse(e.to_string())),
-            Message::OrderUpdates(_) => Ok("orderUpdates".to_string()),
-            Message::UserFundings(fundings) => serde_json::to_string(&Subscription::UserFundings {
-                user: fundings.data.user,
-            })
-            .map_err(|e| Error::JsonParse(e.to_string())),
-            Message::UserNonFundingLedgerUpdates(user_non_funding_ledger_updates) => {
-                serde_json::to_string(&Subscription::UserNonFundingLedgerUpdates {
-                    user: user_non_funding_ledger_updates.data.user,
-                })
-                .map_err(|e| Error::JsonParse(e.to_string()))
-            }
-            Message::Notification(_) => Ok("notification".to_string()),
-            Message::WebData2(web_data2) => serde_json::to_string(&Subscription::WebData2 {
-                user: web_data2.data.user,
-            })
-            .map_err(|e| Error::JsonParse(e.to_string())),
-            Message::ActiveAssetCtx(active_asset_ctx) => {
-                serde_json::to_string(&Subscription::ActiveAssetCtx {
-                    coin: active_asset_ctx.data.coin.clone(),
-                })
-                .map_err(|e| Error::JsonParse(e.to_string()))
-            }
-            Message::ActiveSpotAssetCtx(active_spot_asset_ctx) => {
-                serde_json::to_string(&Subscription::ActiveAssetCtx {
-                    coin: active_spot_asset_ctx.data.coin.clone(),
-                })
-                .map_err(|e| Error::JsonParse(e.to_string()))
-            }
-            Message::ActiveAssetData(active_asset_data) => {
-                serde_json::to_string(&Subscription::ActiveAssetData {
-                    user: active_asset_data.data.user,
-                    coin: active_asset_data.data.coin.clone(),
-                })
-                .map_err(|e| Error::JsonParse(e.to_string()))
-            }
-            Message::Bbo(bbo) => serde_json::to_string(&Subscription::Bbo {
-                coin: bbo.data.coin.clone(),
-            })
-            .map_err(|e| Error::JsonParse(e.to_string())),
-            Message::SubscriptionResponse | Message::Pong => Ok(String::default()),
-            Message::NoData => Ok("".to_string()),
-            Message::HyperliquidError(err) => Ok(format!("hyperliquid error: {err:?}")),
+    /// Unsubscribe from a subscription event.
+    ///
+    /// Returns a receiver that will receive messages from the subscription.
+    ///
+    /// The receiver will be closed when the subscription is closed.
+    /// Returns an error if the subscription does not exist.
+    pub(crate) async fn unsubscribe(
+        &mut self,
+        subscription: Subscription,
+    ) -> Result<tokio::sync::broadcast::Receiver<Message>, crate::Error> {
+        if self
+            .subscriptions
+            .remove_async(&subscription)
+            .await
+            .is_none()
+        {
+            return Err(crate::Error::SubscriptionNotFound);
         }
+        let receiver = self
+            .send_subscription_data(subscription, Method::Unsubscribe)
+            .await;
+
+        Ok(receiver)
     }
 
-    async fn parse_and_send_data(
-        data: std::result::Result<protocol::Message, tungstenite::Error>,
-        subscriptions: &Arc<Mutex<HashMap<String, Vec<SubscriptionData>>>>,
-    ) -> Result<()> {
-        match data {
-            Ok(data) => match data.into_text() {
-                Ok(data) => {
-                    if !data.starts_with('{') {
-                        return Ok(());
-                    }
-                    let message = serde_json::from_str::<Message>(&data)
-                        .map_err(|e| Error::JsonParse(e.to_string()))?;
-                    let identifier = WsManager::get_identifier(&message)?;
-                    if identifier.is_empty() {
-                        return Ok(());
-                    }
-
-                    let mut subscriptions = subscriptions.lock().await;
-                    let mut res = Ok(());
-                    if let Some(subscription_datas) = subscriptions.get_mut(&identifier) {
-                        for subscription_data in subscription_datas {
-                            if let Err(e) = subscription_data
-                                .sending_channel
-                                .send(message.clone())
-                                .map_err(|e| Error::WsSend(e.to_string()))
-                            {
-                                res = Err(e);
-                            }
-                        }
-                    }
-                    res
-                }
-                Err(err) => {
-                    let error = Error::ReaderTextConversion(err.to_string());
-                    Ok(WsManager::send_to_all_subscriptions(
-                        subscriptions,
-                        Message::HyperliquidError(error.to_string()),
-                    )
-                    .await?)
-                }
-            },
-            Err(err) => {
-                let error = Error::GenericReader(err.to_string());
-                Ok(WsManager::send_to_all_subscriptions(
-                    subscriptions,
-                    Message::HyperliquidError(error.to_string()),
-                )
-                .await?)
-            }
+    pub(crate) async fn shutdown(self) {
+        if self.shutdown_tx.send(()).is_err() {
+            tracing::error!("Error sending shutdown signal");
         }
-    }
 
-    async fn send_to_all_subscriptions(
-        subscriptions: &Arc<Mutex<HashMap<String, Vec<SubscriptionData>>>>,
-        message: Message,
-    ) -> Result<()> {
-        let mut subscriptions = subscriptions.lock().await;
-        let mut res = Ok(());
-        for subscription_datas in subscriptions.values_mut() {
-            for subscription_data in subscription_datas {
-                if let Err(e) = subscription_data
-                    .sending_channel
-                    .send(message.clone())
-                    .map_err(|e| Error::WsSend(e.to_string()))
-                {
-                    res = Err(e);
-                }
-            }
-        }
-        res
+        self.task.await.unwrap();
     }
 
     async fn send_subscription_data(
-        method: &'static str,
-        writer: &mut SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, protocol::Message>,
-        identifier: &str,
-    ) -> Result<()> {
-        let payload = serde_json::to_string(&SubscriptionSendData {
-            method,
-            subscription: &serde_json::from_str::<serde_json::Value>(identifier)
-                .map_err(|e| Error::JsonParse(e.to_string()))?,
-        })
-        .map_err(|e| Error::JsonParse(e.to_string()))?;
+        &self,
+        subscription: Subscription,
+        method: Method,
+    ) -> tokio::sync::broadcast::Receiver<Message> {
+        if let Err(e) = self.subscription_tx.send((subscription, method)).await {
+            tracing::error!("Failed to send subscription to subscription channel: {}", e);
+        }
 
-        writer
-            .send(protocol::Message::Text(payload))
+        self.response_tx.subscribe()
+    }
+
+    async fn connect(
+        ws_url: &url::Url,
+    ) -> Result<
+        fastwebsockets::FragmentCollector<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>,
+        crate::Error,
+    > {
+        tracing::info!("Connecting to Hyperliquid WebSocket: {}", ws_url);
+
+        // Parse the WebSocket URL
+        let host = ws_url
+            .host_str()
+            .ok_or_else(|| crate::Error::InvalidUrl(ws_url.to_string()))?;
+        let port = ws_url.port().unwrap_or(443);
+        let addr = format!("{}:{}", host, port);
+
+        tracing::debug!("Connecting to address: {}", addr);
+
+        // Connect to the WebSocket (TCP)
+        let tcp_stream = tokio::net::TcpStream::connect(&addr)
             .await
-            .map_err(|e| Error::Websocket(e.to_string()))?;
-        Ok(())
-    }
+            .map_err(|e| crate::Error::TcpStream(e.to_string()))?;
+        tracing::debug!("TCP connection established");
 
-    async fn subscribe(
-        writer: &mut SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, protocol::Message>,
-        identifier: &str,
-    ) -> Result<()> {
-        Self::send_subscription_data("subscribe", writer, identifier).await
-    }
+        // Wrap the TCP stream in a TLS stream for wss://
+        let tls_connector = native_tls::TlsConnector::new()
+            .map_err(|e| crate::Error::TlsConnector(e.to_string()))?;
+        let tls_connector = tokio_native_tls::TlsConnector::from(tls_connector);
+        let tls_stream = tls_connector
+            .connect(host, tcp_stream)
+            .await
+            .map_err(|e| crate::Error::TlsConnector(e.to_string()))?;
+        tracing::debug!("TLS handshake completed");
 
-    async fn unsubscribe(
-        writer: &mut SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, protocol::Message>,
-        identifier: &str,
-    ) -> Result<()> {
-        Self::send_subscription_data("unsubscribe", writer, identifier).await
-    }
+        // Build the WebSocket upgrade request
+        let req = hyper::Request::builder()
+            .method("GET")
+            .uri(ws_url.as_str())
+            .header("Host", host)
+            .header(hyper::header::UPGRADE, "websocket")
+            .header(hyper::header::CONNECTION, "upgrade")
+            .header(
+                "Sec-WebSocket-Key",
+                fastwebsockets::handshake::generate_key(),
+            )
+            .header("Sec-WebSocket-Version", "13")
+            .body(http_body_util::Empty::<hyper::body::Bytes>::new())
+            .map_err(|e| crate::Error::Websocket(e.to_string()))?;
 
-    pub(crate) async fn add_subscription(
-        &mut self,
-        identifier: String,
-        sending_channel: UnboundedSender<Message>,
-    ) -> Result<u32> {
-        let mut subscriptions = self.subscriptions.lock().await;
+        tracing::debug!("WebSocket upgrade request built");
 
-        let identifier_entry = if let Subscription::UserEvents { user: _ } =
-            serde_json::from_str::<Subscription>(&identifier)
-                .map_err(|e| Error::JsonParse(e.to_string()))?
-        {
-            "userEvents".to_string()
-        } else if let Subscription::OrderUpdates { user: _ } =
-            serde_json::from_str::<Subscription>(&identifier)
-                .map_err(|e| Error::JsonParse(e.to_string()))?
-        {
-            "orderUpdates".to_string()
-        } else {
-            identifier.clone()
-        };
-        let subscriptions = subscriptions
-            .entry(identifier_entry.clone())
-            .or_insert(Vec::new());
+        // Perform WebSocket handshake
+        let (ws, response) = fastwebsockets::handshake::client(&SpawnExecutor, req, tls_stream)
+            .await
+            .map_err(|e| crate::Error::Websocket(e.to_string()))?;
+        tracing::debug!(
+            "WebSocket handshake completed, response status: {}",
+            response.status()
+        );
 
-        if !subscriptions.is_empty() && identifier_entry.eq("userEvents") {
-            return Err(Error::UserEvents);
-        }
-
-        if subscriptions.is_empty() {
-            Self::subscribe(self.writer.lock().await.borrow_mut(), identifier.as_str()).await?;
-        }
-
-        let subscription_id = self.subscription_id;
-        self.subscription_identifiers
-            .insert(subscription_id, identifier.clone());
-        subscriptions.push(SubscriptionData {
-            sending_channel,
-            subscription_id,
-            id: identifier,
-        });
-
-        self.subscription_id += 1;
-        Ok(subscription_id)
-    }
-
-    pub(crate) async fn remove_subscription(&mut self, subscription_id: u32) -> Result<()> {
-        let identifier = self
-            .subscription_identifiers
-            .get(&subscription_id)
-            .ok_or(Error::SubscriptionNotFound)?
-            .clone();
-
-        let identifier_entry = if let Subscription::UserEvents { user: _ } =
-            serde_json::from_str::<Subscription>(&identifier)
-                .map_err(|e| Error::JsonParse(e.to_string()))?
-        {
-            "userEvents".to_string()
-        } else if let Subscription::OrderUpdates { user: _ } =
-            serde_json::from_str::<Subscription>(&identifier)
-                .map_err(|e| Error::JsonParse(e.to_string()))?
-        {
-            "orderUpdates".to_string()
-        } else {
-            identifier.clone()
-        };
-
-        self.subscription_identifiers.remove(&subscription_id);
-
-        let mut subscriptions = self.subscriptions.lock().await;
-
-        let subscriptions = subscriptions
-            .get_mut(&identifier_entry)
-            .ok_or(Error::SubscriptionNotFound)?;
-        let index = subscriptions
-            .iter()
-            .position(|subscription_data| subscription_data.subscription_id == subscription_id)
-            .ok_or(Error::SubscriptionNotFound)?;
-        subscriptions.remove(index);
-
-        if subscriptions.is_empty() {
-            Self::unsubscribe(self.writer.lock().await.borrow_mut(), identifier.as_str()).await?;
-        }
-        Ok(())
+        Ok(fastwebsockets::FragmentCollector::new(ws))
     }
 }
 
-impl Drop for WsManager {
-    fn drop(&mut self) {
-        self.stop_flag.store(true, Ordering::Relaxed);
+// Tie hyper's executor to tokio runtime
+struct SpawnExecutor;
+
+impl<Fut> hyper::rt::Executor<Fut> for SpawnExecutor
+where
+    Fut: Future + Send + 'static,
+    Fut::Output: Send + 'static,
+{
+    fn execute(&self, fut: Fut) {
+        tokio::task::spawn(fut);
     }
 }

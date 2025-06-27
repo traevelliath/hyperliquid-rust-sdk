@@ -1,25 +1,29 @@
-use ethers::signers::LocalWallet;
-use hyperliquid_rust_sdk::{BaseUrl, ExchangeClient};
-use log::info;
+use alloy::signers::local::PrivateKeySigner;
+use hyperliquid_sdk::{ExchangeClient, NetworkType};
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
     // Key was randomly generated for testing and shouldn't be used with any real funds
-    let wallet: LocalWallet = "e908f86dbb4d55ac876378565aafeabc187f6690f046459397b17d9b9a19688e"
-        .parse()
-        .unwrap();
-
-    let exchange_client =
-        ExchangeClient::new(None, wallet.clone(), Some(BaseUrl::Testnet), None, None)
-            .await
+    let signer: PrivateKeySigner =
+        "e908f86dbb4d55ac876378565aafeabc187f6690f046459397b17d9b9a19688e"
+            .parse()
             .unwrap();
 
+    let exchange_client = ExchangeClient::new(signer, NetworkType::Testnet, None, None)
+        .await
+        .unwrap();
+
     let max_fee_rate = "0.1%";
-    let builder = "0x1ab189B7801140900C711E458212F9c76F8dAC79".to_lowercase();
 
     let resp = exchange_client
-        .approve_builder_fee(builder.to_string(), max_fee_rate.to_string(), Some(&wallet))
+        .approve_builder_fee(
+            "0x1ab189B7801140900C711E458212F9c76F8dAC79"
+                .parse()
+                .unwrap(),
+            max_fee_rate.to_string(),
+            Some(&exchange_client.wallet),
+        )
         .await;
-    info!("resp: {resp:#?}");
+    tracing::info!("resp: {resp:#?}");
 }

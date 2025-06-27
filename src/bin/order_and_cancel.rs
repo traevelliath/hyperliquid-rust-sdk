@@ -1,21 +1,21 @@
-use ethers::signers::LocalWallet;
-use log::info;
+use alloy::signers::local::PrivateKeySigner;
 
-use hyperliquid_rust_sdk::{
-    BaseUrl, ClientCancelRequest, ClientLimit, ClientOrder, ClientOrderRequest, ExchangeClient,
-    ExchangeDataStatus, ExchangeResponseStatus,
+use hyperliquid_sdk::{
+    ClientCancelRequest, ClientLimit, ClientOrder, ClientOrderRequest, ExchangeClient,
+    ExchangeDataStatus, ExchangeResponseStatus, NetworkType,
 };
 use std::{thread::sleep, time::Duration};
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
     // Key was randomly generated for testing and shouldn't be used with any real funds
-    let wallet: LocalWallet = "e908f86dbb4d55ac876378565aafeabc187f6690f046459397b17d9b9a19688e"
-        .parse()
-        .unwrap();
+    let wallet: PrivateKeySigner =
+        "e908f86dbb4d55ac876378565aafeabc187f6690f046459397b17d9b9a19688e"
+            .parse()
+            .unwrap();
 
-    let exchange_client = ExchangeClient::new(None, wallet, Some(BaseUrl::Testnet), None, None)
+    let exchange_client = ExchangeClient::new(wallet, NetworkType::Testnet, None, None)
         .await
         .unwrap();
 
@@ -32,7 +32,7 @@ async fn main() {
     };
 
     let response = exchange_client.order(order, None).await.unwrap();
-    info!("Order placed: {response:?}");
+    tracing::info!("Order placed: {response:?}");
 
     let response = match response {
         ExchangeResponseStatus::Ok(exchange_response) => exchange_response,
@@ -55,5 +55,5 @@ async fn main() {
 
     // This response will return an error if order was filled (since you can't cancel a filled order), otherwise it will cancel the order
     let response = exchange_client.cancel(cancel, None).await.unwrap();
-    info!("Order potentially cancelled: {response:?}");
+    tracing::info!("Order potentially cancelled: {response:?}");
 }

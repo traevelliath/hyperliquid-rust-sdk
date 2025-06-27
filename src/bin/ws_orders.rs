@@ -1,35 +1,59 @@
-use log::info;
+use hyperliquid_sdk::{InfoClient, Message, NetworkType, Subscription, shutdown_signal};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use std::str::FromStr;
 
-use ethers::types::H160;
-use hyperliquid_rust_sdk::{BaseUrl, InfoClient, Message, Subscription};
-use tokio::{
-    spawn,
-    sync::mpsc::unbounded_channel,
-    time::{sleep, Duration},
-};
-
 #[tokio::main]
 async fn main() {
-    env_logger::init();
-    let mut info_client = InfoClient::new(None, Some(BaseUrl::Testnet)).await.unwrap();
-    let user = H160::from_str("0xc64cc00b46101bd40aa1c3121195e85c0b0918d8").unwrap();
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .event_format(tracing_subscriber::fmt::format().compact())
+                .with_timer(tracing_subscriber::fmt::time::LocalTime::rfc_3339()),
+        )
+        .with(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(tracing::Level::DEBUG.into())
+                .from_env_lossy(),
+        )
+        .init();
 
-    let (sender, mut receiver) = unbounded_channel();
-    let subscription_id = info_client
-        .subscribe(Subscription::OrderUpdates { user }, sender)
+    let mut info_client = InfoClient::new(NetworkType::Mainnet).await.unwrap();
+    let user =
+        alloy::primitives::Address::from_str("0xc64cc00b46101bd40aa1c3121195e85c0b0918d8").unwrap();
+
+    let mut receiver = info_client
+        .subscribe(Subscription::OrderUpdates { user })
         .await
         .unwrap();
 
-    spawn(async move {
-        sleep(Duration::from_secs(30)).await;
-        info!("Unsubscribing from order updates data");
-        info_client.unsubscribe(subscription_id).await.unwrap()
-    });
-
-    // this loop ends when we unsubscribe
-    while let Some(Message::OrderUpdates(order_updates)) = receiver.recv().await {
-        info!("Received order update data: {order_updates:?}");
+    let mut batch_id = 0;
+    loop {
+        tokio::select! {
+            _ = shutdown_signal() => {
+                break;
+            }
+            Ok(m) = receiver.recv() => {
+                if let Message::OrderUpdates(order_updates) = m {
+                    batch_id += 1;
+                    let batch_size = order_updates.data.len();
+                    for update in order_updates.data {
+                        let order = update.order;
+                        let side = if order.side == "B" { "BUY" } else { "SELL" };
+                        tracing::info!(
+                            coin = %order.coin,
+                            status = %update.status,
+                            limit_price = %order.limit_px,
+                            size = %order.sz,
+                            batch_id = %batch_id,
+                            batch_size = %batch_size,
+                            "NEW {side} ORDER:"
+                        );
+                    }
+                }
+            }
+        }
     }
+
+    info_client.shutdown().await;
 }

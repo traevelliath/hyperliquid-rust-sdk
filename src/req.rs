@@ -1,4 +1,4 @@
-use crate::{prelude::*, BaseUrl, Error};
+use crate::{BaseUrl, Error, prelude::*};
 use reqwest::{Client, Response};
 use serde::Deserialize;
 
@@ -12,7 +12,13 @@ struct ErrorData {
 #[derive(Debug)]
 pub struct HttpClient {
     pub client: Client,
-    pub base_url: String,
+    pub base_url: BaseUrl,
+}
+
+pub enum NetworkType {
+    Mainnet,
+    Testnet,
+    Localhost,
 }
 
 async fn parse_response(response: Response) -> Result<String> {
@@ -52,7 +58,7 @@ async fn parse_response(response: Response) -> Result<String> {
 
 impl HttpClient {
     pub async fn post(&self, url_path: &'static str, data: String) -> Result<String> {
-        let full_url = format!("{}{url_path}", self.base_url);
+        let full_url = format!("{}{url_path}", self.base_url.get_url());
         let request = self
             .client
             .post(full_url)
@@ -69,6 +75,14 @@ impl HttpClient {
     }
 
     pub fn is_mainnet(&self) -> bool {
-        self.base_url == BaseUrl::Mainnet.get_url()
+        self.base_url == BaseUrl::Mainnet
+    }
+
+    pub fn network_type(&self) -> NetworkType {
+        match self.base_url {
+            BaseUrl::Mainnet => NetworkType::Mainnet,
+            BaseUrl::Testnet => NetworkType::Testnet,
+            BaseUrl::Localhost => NetworkType::Localhost,
+        }
     }
 }
