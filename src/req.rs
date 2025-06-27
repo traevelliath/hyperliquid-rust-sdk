@@ -9,12 +9,13 @@ struct ErrorData {
     msg: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HttpClient {
     pub client: Client,
     pub base_url: BaseUrl,
 }
 
+#[derive(Debug, Clone)]
 pub enum NetworkType {
     Mainnet,
     Testnet,
