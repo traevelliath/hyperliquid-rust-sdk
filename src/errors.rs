@@ -1,6 +1,4 @@
-use thiserror::Error;
-
-#[derive(Error, Debug, Clone)]
+#[derive(thiserror::Error, Debug, Clone)]
 pub enum Error {
     // TODO: turn some embedded types into errors instead of strings
     #[error(
@@ -35,8 +33,8 @@ pub enum Error {
     Websocket(String),
     #[error("Subscription not found")]
     SubscriptionNotFound,
-    #[error("Subscription already exists")]
-    SubscriptionAlreadyExists,
+    #[error("Subscription already exists: {0}")]
+    SubscriptionAlreadyExists(String),
     #[error("WS manager not instantiated")]
     WsManagerNotFound,
     #[error("WS send error: {0:?}")]

@@ -103,6 +103,7 @@ impl Subscription {
 #[serde(rename_all = "camelCase")]
 pub enum Message {
     NoData,
+    Error(crate::ws::message_types::Error),
     HyperliquidError(String),
     AllMids(crate::ws::message_types::AllMids),
     Trades(crate::ws::message_types::Trades),
@@ -207,7 +208,7 @@ impl WsManager {
                                         let message = match serde_json::from_str::<Message>(&text) {
                                             Ok(msg) => msg,
                                             Err(e) => {
-                                                tracing::error!("Failed to parse message: {}", e);
+                                                tracing::error!("Failed to parse message {}: {}", text, e);
 
                                                 continue;
                                             }
@@ -302,7 +303,11 @@ impl WsManager {
         self.subscriptions
             .insert_async(subscription.clone(), ())
             .await
-            .map_err(|_| crate::Error::SubscriptionAlreadyExists)?;
+            .map_err(|_| {
+                crate::Error::SubscriptionAlreadyExists(
+                    serde_json::to_string(&subscription).unwrap_or_default(),
+                )
+            })?;
         let receiver = self
             .send_subscription_data(subscription, Method::Subscribe)
             .await;

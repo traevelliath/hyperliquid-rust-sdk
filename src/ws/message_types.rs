@@ -1,4 +1,5 @@
 use crate::ws::sub_structs::*;
+
 use serde::Deserialize;
 
 #[derive(Deserialize, Clone, Debug)]
@@ -74,4 +75,9 @@ pub struct ActiveAssetData {
 #[derive(Deserialize, Clone, Debug)]
 pub struct Bbo {
     pub data: BboData,
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct Error {
+    pub data: String,
 }

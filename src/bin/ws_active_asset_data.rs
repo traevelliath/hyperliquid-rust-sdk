@@ -30,20 +30,44 @@ async fn main() {
         .await
         .unwrap();
 
+    //                               duplicate     typo: XRP
+    for coin in ["BTC", "ETH", "SOL", "XPR", "SUI", "DOGE"] {
+        match info_client
+            .subscribe(Subscription::ActiveAssetData {
+                user,
+                coin: coin.to_string(),
+            })
+            .await
+        {
+            Ok(_) => {
+                tracing::info!("Subscribed to {}", coin);
+            }
+            Err(e) => {
+                tracing::error!("Error: {}", e);
+            }
+        }
+    }
+
     loop {
         tokio::select! {
             _ = shutdown_signal() => {
                 break;
             }
             Ok(m) = receiver.recv() => {
-                if let Message::ActiveAssetData(active_asset_data) = m {
-                    tracing::info!(
-                        coin = %active_asset_data.data.coin,
-                        leverage = ?active_asset_data.data.leverage,
-                        max_trade_szs = ?active_asset_data.data.max_trade_szs,
-                        available_to_trade = ?active_asset_data.data.available_to_trade,
-                        "NEW ACTIVE ASSET DATA:"
-                    );
+                match m {
+                    Message::ActiveAssetData(active_asset_data) => {
+                        tracing::info!(
+                            coin = %active_asset_data.data.coin,
+                            leverage = ?active_asset_data.data.leverage,
+                            max_trade_szs = ?active_asset_data.data.max_trade_szs,
+                            available_to_trade = ?active_asset_data.data.available_to_trade,
+                            "NEW ACTIVE ASSET DATA:"
+                        );
+                    }
+                    Message::Error(error) => {
+                        tracing::error!("Error: {}", error.data);
+                    }
+                    _ => {}
                 }
             }
         }
