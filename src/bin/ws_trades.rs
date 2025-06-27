@@ -16,7 +16,7 @@ async fn main() {
         )
         .init();
 
-    let mut info_client = InfoClient::new(NetworkType::Mainnet).await.unwrap();
+    let mut info_client = InfoClient::builder().network(NetworkType::Mainnet).build();
 
     let mut receiver = info_client
         .subscribe(Subscription::Trades {

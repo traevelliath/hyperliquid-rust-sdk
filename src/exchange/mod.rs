@@ -1,18 +1,20 @@
 mod actions;
+mod api;
 mod builder;
 mod cancel;
-mod exchange_client;
-mod exchange_responses;
+mod client;
 mod modify;
 mod order;
+mod response;
 
 pub use actions::*;
+pub use api::*;
 pub use builder::*;
 pub use cancel::{ClientCancelRequest, ClientCancelRequestCloid};
-pub use exchange_client::*;
-pub use exchange_responses::*;
+pub use client::*;
 pub use modify::{ClientModifyRequest, ModifyRequest};
 pub use order::{
-    ClientLimit, ClientOrder, ClientOrderRequest, ClientTrigger, MarketCloseParams,
+    BuilderInfo, ClientLimit, ClientOrder, ClientOrderRequest, ClientTrigger, MarketCloseParams,
     MarketOrderParams, Order,
 };
+pub use response::*;

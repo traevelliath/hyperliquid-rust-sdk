@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use alloy::primitives::B128;
 use serde::Deserialize;
 
@@ -15,11 +13,8 @@ pub struct SpotMeta {
 }
 
 impl SpotMeta {
-    pub fn add_pair_and_name_to_index_map(
-        &self,
-        mut coin_to_asset: HashMap<String, u32>,
-    ) -> HashMap<String, u32> {
-        let index_to_name: HashMap<usize, &str> = self
+    pub fn add_to_coin_to_asset_map(&self, coin_to_asset: &mut scc::HashMap<String, u32>) {
+        let index_to_name: scc::HashMap<usize, &str> = self
             .tokens
             .iter()
             .map(|info| (info.index, info.name.as_str()))
@@ -29,19 +24,23 @@ impl SpotMeta {
             let spot_ind: u32 = 10000 + asset.index as u32;
             let name_to_ind = (asset.name.clone(), spot_ind);
 
-            let Some(token_1_name) = index_to_name.get(&asset.tokens[0]) else {
+            let Some(token_1_name) = index_to_name.read(&asset.tokens[0], |_, name| *name) else {
                 continue;
             };
 
-            let Some(token_2_name) = index_to_name.get(&asset.tokens[1]) else {
+            let Some(token_2_name) = index_to_name.read(&asset.tokens[1], |_, name| *name) else {
                 continue;
             };
 
-            coin_to_asset.insert(format!("{token_1_name}/{token_2_name}"), spot_ind);
-            coin_to_asset.insert(name_to_ind.0, name_to_ind.1);
+            let key1 = format!("{token_1_name}/{token_2_name}");
+            let val1 = spot_ind;
+
+            let key2 = name_to_ind.0;
+            let val2 = name_to_ind.1;
+
+            coin_to_asset.insert(key1, val1).ok();
+            coin_to_asset.insert(key2, val2).ok();
         }
-
-        coin_to_asset
     }
 }
 

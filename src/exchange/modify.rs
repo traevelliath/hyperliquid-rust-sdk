@@ -1,5 +1,5 @@
 use super::{ClientOrderRequest, order::OrderRequest};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 #[derive(Debug)]
 pub struct ClientModifyRequest {
@@ -7,8 +7,8 @@ pub struct ClientModifyRequest {
     pub order: ClientOrderRequest,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ModifyRequest {
+#[derive(Serialize, Debug, Clone)]
+pub struct ModifyRequest<'a> {
     pub oid: u64,
-    pub order: OrderRequest,
+    pub order: OrderRequest<'a>,
 }

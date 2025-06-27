@@ -4,33 +4,41 @@ use crate::{
     prelude::*,
 };
 use alloy::signers::local::PrivateKeySigner;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use serde::Serialize;
 use uuid::Uuid;
 
-#[derive(Deserialize, Serialize, Clone, Debug)]
-pub struct Limit {
-    pub tif: String,
+#[derive(Default, Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BuilderInfo {
+    #[serde(rename = "b")]
+    pub builder: String,
+    #[serde(rename = "f")]
+    pub fee: u64,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Serialize, Clone, Debug)]
+pub struct Limit<'a> {
+    pub tif: &'a str,
+}
+
+#[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct Trigger {
+pub struct Trigger<'a> {
     pub is_market: bool,
     pub trigger_px: String,
-    pub tpsl: String,
+    pub tpsl: &'a str,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub enum Order {
-    Limit(Limit),
-    Trigger(Trigger),
+pub enum Order<'a> {
+    Limit(Limit<'a>),
+    Trigger(Trigger<'a>),
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct OrderRequest {
+pub struct OrderRequest<'a> {
     #[serde(rename = "a", alias = "asset")]
     pub asset: u32,
     #[serde(rename = "b", alias = "isBuy")]
@@ -42,7 +50,7 @@ pub struct OrderRequest {
     #[serde(rename = "r", alias = "reduceOnly", default)]
     pub reduce_only: bool,
     #[serde(rename = "t", alias = "orderType")]
-    pub order_type: Order,
+    pub order_type: Order<'a>,
     #[serde(rename = "c", alias = "cloid", skip_serializing_if = "Option::is_none")]
     pub cloid: Option<String>,
 }
@@ -100,19 +108,19 @@ pub struct ClientOrderRequest {
 impl ClientOrderRequest {
     pub(crate) fn to_order_request(
         &self,
-        coin_to_asset: &HashMap<String, u32>,
+        coin_to_asset: &scc::HashMap<String, u32>,
     ) -> Result<OrderRequest> {
         let order_type = match &self.order_type {
-            ClientOrder::Limit(limit) => Order::Limit(Limit {
-                tif: limit.tif.clone(),
-            }),
+            ClientOrder::Limit(limit) => Order::Limit(Limit { tif: &limit.tif }),
             ClientOrder::Trigger(trigger) => Order::Trigger(Trigger {
                 trigger_px: float_to_string_for_hashing(trigger.trigger_px),
                 is_market: trigger.is_market,
-                tpsl: trigger.tpsl.clone(),
+                tpsl: &trigger.tpsl,
             }),
         };
-        let &asset = coin_to_asset.get(&self.asset).ok_or(Error::AssetNotFound)?;
+        let asset = coin_to_asset
+            .read(&self.asset, |_, asset| *asset)
+            .ok_or(Error::AssetNotFound)?;
 
         let cloid = self.cloid.map(uuid_to_hex_string);
 

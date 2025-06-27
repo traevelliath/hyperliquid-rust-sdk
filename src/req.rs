@@ -1,8 +1,6 @@
 use crate::{BaseUrl, Error, prelude::*};
-use reqwest::{Client, Response};
-use serde::Deserialize;
 
-#[derive(Deserialize, Debug)]
+#[derive(serde::Deserialize, Debug)]
 struct ErrorData {
     data: String,
     code: u16,
@@ -11,7 +9,7 @@ struct ErrorData {
 
 #[derive(Debug, Clone)]
 pub struct HttpClient {
-    pub client: Client,
+    pub client: reqwest::Client,
     pub base_url: BaseUrl,
 }
 
@@ -22,30 +20,31 @@ pub enum NetworkType {
     Localhost,
 }
 
-async fn parse_response(response: Response) -> Result<String> {
-    let status_code = response.status().as_u16();
+async fn parse_response(response: reqwest::Response) -> Result<String> {
+    let status = response.status();
     let text = response
         .text()
         .await
         .map_err(|e| Error::GenericRequest(e.to_string()))?;
 
-    if status_code < 400 {
+    if status.is_success() {
         return Ok(text);
     }
-    let error_data = serde_json::from_str::<ErrorData>(&text);
-    if (400..500).contains(&status_code) {
-        let client_error = match error_data {
-            Ok(error_data) => Error::ClientRequest {
+
+    let status_code = status.as_u16();
+    if status.is_client_error() {
+        let client_error = match serde_json::from_str::<ErrorData>(&text) {
+            Ok(ErrorData { data, code, msg }) => Error::ClientRequest {
                 status_code,
-                error_code: Some(error_data.code),
-                error_message: error_data.msg,
-                error_data: Some(error_data.data),
+                error_code: Some(code),
+                error_message: msg,
+                error_data: Some(data),
             },
-            Err(err) => Error::ClientRequest {
+            Err(_) => Error::ClientRequest {
                 status_code,
-                error_message: text,
                 error_code: None,
-                error_data: Some(err.to_string()),
+                error_message: text,
+                error_data: None,
             },
         };
         return Err(client_error);
@@ -58,20 +57,23 @@ async fn parse_response(response: Response) -> Result<String> {
 }
 
 impl HttpClient {
-    pub async fn post(&self, url_path: &'static str, data: String) -> Result<String> {
-        let full_url = format!("{}{url_path}", self.base_url.get_url());
+    pub async fn post(&self, url: &str, data: String) -> Result<String> {
+        let url = url::Url::parse(&format!("{}{}", self.base_url.get_url(), url))
+            .map_err(|e| Error::InvalidUrl(e.to_string()))?;
         let request = self
             .client
-            .post(full_url)
+            .post(url)
             .header("Content-Type", "application/json")
             .body(data)
             .build()
             .map_err(|e| Error::GenericRequest(e.to_string()))?;
+
         let result = self
             .client
             .execute(request)
             .await
             .map_err(|e| Error::GenericRequest(e.to_string()))?;
+
         parse_response(result).await
     }
 

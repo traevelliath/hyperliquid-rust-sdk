@@ -1,7 +1,6 @@
-use crate::req::NetworkType;
 use crate::signature::sign_typed_data;
 use crate::{
-    BaseUrl, BulkCancelCloid, Error, ExchangeResponseStatus,
+    BulkCancelCloid, Error, ExchangeResponseStatus,
     exchange::{
         ClientCancelRequest, ClientOrderRequest,
         actions::{
@@ -19,129 +18,75 @@ use crate::{
     signature::sign_l1_action,
 };
 use crate::{ClassTransfer, SpotSend, SpotUser, VaultTransfer, Withdraw3};
+use crate::{ExchangeClientBuilder, req::NetworkType};
 
-use alloy::primitives::{B256, U256, keccak256};
+use alloy::primitives::U256;
 use alloy::signers::Signature;
 use alloy::signers::k256::ecdsa::SigningKey;
 use alloy::{primitives::Address, signers::local::PrivateKeySigner};
 
-use reqwest::Client;
-use serde::ser::SerializeStruct;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
+use super::api::{Actions, ExchangePayload};
 use super::cancel::ClientCancelRequestCloid;
 use super::order::{BuilderInfo, MarketCloseParams, MarketOrderParams};
 use super::{ClientLimit, ClientOrder};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ExchangeClient {
     pub http_client: HttpClient,
-    pub info: InfoClient,
-    pub wallet: PrivateKeySigner,
-    pub meta: Meta,
-    pub vault_address: Option<Address>,
-    pub coin_to_asset: HashMap<String, u32>,
+    pub wallet: std::sync::Arc<PrivateKeySigner>,
+    pub vault_address: Option<std::sync::Arc<Address>>,
+    pub meta: std::sync::Arc<scc::HashMap<String, u32>>,
+    pub coin_to_asset: std::sync::Arc<scc::HashMap<String, u32>>,
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ExchangePayload {
-    action: serde_json::Value,
-    #[serde(serialize_with = "serialize_signature_legacy")]
-    signature: Signature,
-    nonce: u64,
-    vault_address: Option<Address>,
-}
-
-pub fn serialize_signature_legacy<S>(
-    signature: &Signature,
-    serializer: S,
-) -> std::result::Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let mut s = serializer.serialize_struct("Signature", 4)?;
-    s.serialize_field("r", &signature.r())?;
-    s.serialize_field("s", &signature.s())?;
-    s.serialize_field("y_parity", &signature.v())?;
-    s.serialize_field("v", &(27 + signature.v() as u8))?;
-    s.end()
-}
-
-#[derive(Serialize, Debug, Clone)]
-#[serde(tag = "type")]
-#[serde(rename_all = "camelCase")]
-pub enum Actions<'a> {
-    UsdSend(UsdSend),
-    UpdateLeverage(UpdateLeverage),
-    UpdateIsolatedMargin(UpdateIsolatedMargin),
-    Order(BulkOrder<'a>),
-    Cancel(BulkCancel),
-    CancelByCloid(BulkCancelCloid),
-    BatchModify(BulkModify<'a>),
-    ApproveAgent(ApproveAgent),
-    Withdraw3(Withdraw3),
-    SpotUser(SpotUser),
-    VaultTransfer(VaultTransfer),
-    SpotSend(SpotSend),
-    SetReferrer(SetReferrer),
-    ApproveBuilderFee(ApproveBuilderFee),
-}
-
-impl<'a> Actions<'a> {
-    fn hash(&self, timestamp: u64, vault_address: Option<Address>) -> Result<B256> {
-        let mut bytes =
-            rmp_serde::to_vec_named(self).map_err(|e| Error::RmpParse(e.to_string()))?;
-        bytes.extend(timestamp.to_be_bytes());
-        if let Some(vault_address) = vault_address {
-            bytes.push(1);
-            bytes.extend(vault_address);
-        } else {
-            bytes.push(0);
-        }
-        Ok(keccak256(bytes))
+impl ExchangeClient {
+    pub fn builder() -> ExchangeClientBuilder {
+        ExchangeClientBuilder::default()
     }
 }
 
 impl ExchangeClient {
-    pub async fn new(
+    pub(crate) async fn new(
+        http_client: HttpClient,
         wallet: PrivateKeySigner,
         network: NetworkType,
         meta: Option<Meta>,
         vault_address: Option<Address>,
     ) -> Result<ExchangeClient> {
-        let client = Client::new();
-        let base_url = match network {
-            NetworkType::Mainnet => BaseUrl::Mainnet,
-            NetworkType::Testnet => BaseUrl::Testnet,
-            NetworkType::Localhost => BaseUrl::Localhost,
-        };
-
-        let info = InfoClient::builder().network(network).build();
+        let info = InfoClient::builder()
+            .http_client(http_client.client.clone())
+            .network(network)
+            .build();
         let meta = if let Some(meta) = meta {
             meta
         } else {
             info.meta().await?
         };
-
-        let mut coin_to_asset = HashMap::new();
-        for (asset_ind, asset) in meta.universe.iter().enumerate() {
-            coin_to_asset.insert(asset.name.clone(), asset_ind as u32);
-        }
-
-        coin_to_asset = info
-            .spot_meta()
+        let mut perp_map = {
+            let iter = meta
+                .universe
+                .iter()
+                .enumerate()
+                .map(|(idx, asset)| (asset.name.clone(), idx as u32));
+            scc::HashMap::from_iter(iter)
+        };
+        info.spot_meta()
             .await?
-            .add_pair_and_name_to_index_map(coin_to_asset);
+            .add_to_coin_to_asset_map(&mut perp_map);
 
+        let meta = {
+            let iter = meta
+                .universe
+                .into_iter()
+                .map(|asset| (asset.name, asset.sz_decimals));
+            scc::HashMap::from_iter(iter)
+        };
         Ok(ExchangeClient {
-            info,
-            wallet,
-            meta,
-            vault_address,
-            http_client: HttpClient { client, base_url },
-            coin_to_asset,
+            http_client,
+            wallet: std::sync::Arc::new(wallet),
+            vault_address: vault_address.map(std::sync::Arc::new),
+            meta: std::sync::Arc::new(meta),
+            coin_to_asset: std::sync::Arc::new(perp_map),
         })
     }
 
@@ -155,7 +100,7 @@ impl ExchangeClient {
             action,
             signature,
             nonce,
-            vault_address: self.vault_address,
+            vault_address: self.vault_address.as_ref().map(|v| v.to_string()),
         };
 
         let res = serde_json::to_string(&exchange_payload)
@@ -214,7 +159,8 @@ impl ExchangeClient {
         let action = Actions::SpotUser(SpotUser {
             class_transfer: ClassTransfer { usdc, to_perp },
         });
-        let connection_id = action.hash(timestamp, self.vault_address)?;
+        let connection_id =
+            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
         let signature = sign_l1_action(signer, connection_id, is_mainnet)?;
@@ -226,15 +172,11 @@ impl ExchangeClient {
         &self,
         is_deposit: bool,
         usd: u64,
-        vault_address: Option<Address>,
-        signer: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
-        let vault_address = self
-            .vault_address
-            .or(vault_address)
-            .ok_or(Error::VaultAddressNotFound)?;
-        let signer = signer.unwrap_or(&self.wallet);
-
+        let vault_address = match &self.vault_address {
+            Some(vault_address) => vault_address.as_ref(),
+            None => return Err(crate::Error::VaultAddressNotFound),
+        };
         let timestamp = next_nonce();
 
         let action = Actions::VaultTransfer(VaultTransfer {
@@ -242,10 +184,11 @@ impl ExchangeClient {
             is_deposit,
             usd,
         });
-        let connection_id = action.hash(timestamp, self.vault_address)?;
+        let connection_id =
+            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
-        let signature = sign_l1_action(signer, connection_id, is_mainnet)?;
+        let signature = sign_l1_action(&self.wallet, connection_id, is_mainnet)?;
 
         self.post(action, signature, timestamp).await
     }
@@ -363,7 +306,12 @@ impl ExchangeClient {
             .ok_or(Error::AssetNotFound)?;
 
         let sz_decimals = asset_meta.sz_decimals;
-        let max_decimals: u32 = if self.coin_to_asset[asset] < 10000 {
+        let max_decimals: u32 = if self
+            .coin_to_asset
+            .read(asset, |_, asset| *asset)
+            .unwrap_or_default()
+            < 10000
+        {
             6
         } else {
             8
@@ -432,7 +380,8 @@ impl ExchangeClient {
             grouping: "na".to_string(),
             builder: None,
         });
-        let connection_id = action.hash(timestamp, self.vault_address)?;
+        let connection_id =
+            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
 
         let is_mainnet = self.http_client.is_mainnet();
@@ -461,7 +410,8 @@ impl ExchangeClient {
             grouping: "na".to_string(),
             builder: Some(builder),
         });
-        let connection_id = action.hash(timestamp, self.vault_address)?;
+        let connection_id =
+            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
 
         let is_mainnet = self.http_client.is_mainnet();
@@ -487,9 +437,9 @@ impl ExchangeClient {
 
         let mut transformed_cancels = Vec::new();
         for cancel in cancels.iter() {
-            let &asset = self
+            let asset = self
                 .coin_to_asset
-                .get(&cancel.asset)
+                .read(&cancel.asset, |_, asset| *asset)
                 .ok_or(Error::AssetNotFound)?;
             transformed_cancels.push(CancelRequest {
                 asset,
@@ -500,7 +450,8 @@ impl ExchangeClient {
         let action = Actions::Cancel(BulkCancel {
             cancels: transformed_cancels,
         });
-        let connection_id = action.hash(timestamp, self.vault_address)?;
+        let connection_id =
+            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
 
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
@@ -536,7 +487,8 @@ impl ExchangeClient {
         let action = Actions::BatchModify(BulkModify {
             modifies: transformed_modifies,
         });
-        let connection_id = action.hash(timestamp, self.vault_address)?;
+        let connection_id =
+            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
 
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
@@ -563,9 +515,9 @@ impl ExchangeClient {
 
         let mut transformed_cancels: Vec<CancelRequestCloid> = Vec::new();
         for cancel in cancels.iter() {
-            let &asset = self
+            let asset = self
                 .coin_to_asset
-                .get(&cancel.asset)
+                .read(&cancel.asset, |_, asset| *asset)
                 .ok_or(Error::AssetNotFound)?;
             transformed_cancels.push(CancelRequestCloid {
                 asset,
@@ -577,7 +529,8 @@ impl ExchangeClient {
             cancels: transformed_cancels,
         });
 
-        let connection_id = action.hash(timestamp, self.vault_address)?;
+        let connection_id =
+            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
         let signature = sign_l1_action(wallet, connection_id, is_mainnet)?;
@@ -596,13 +549,17 @@ impl ExchangeClient {
 
         let timestamp = next_nonce();
 
-        let &asset_index = self.coin_to_asset.get(coin).ok_or(Error::AssetNotFound)?;
+        let asset_index = self
+            .coin_to_asset
+            .read(coin, |_, asset| *asset)
+            .ok_or(Error::AssetNotFound)?;
         let action = Actions::UpdateLeverage(UpdateLeverage {
             asset: asset_index,
             is_cross,
             leverage,
         });
-        let connection_id = action.hash(timestamp, self.vault_address)?;
+        let connection_id =
+            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
         let signature = sign_l1_action(wallet, connection_id, is_mainnet)?;
@@ -621,13 +578,17 @@ impl ExchangeClient {
         let amount = (amount * 1_000_000.0).round() as i64;
         let timestamp = next_nonce();
 
-        let &asset_index = self.coin_to_asset.get(coin).ok_or(Error::AssetNotFound)?;
+        let asset_index = self
+            .coin_to_asset
+            .read(coin, |_, asset| *asset)
+            .ok_or(Error::AssetNotFound)?;
         let action = Actions::UpdateIsolatedMargin(UpdateIsolatedMargin {
             asset: asset_index,
             is_buy: true,
             ntli: amount,
         });
-        let connection_id = action.hash(timestamp, self.vault_address)?;
+        let connection_id =
+            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
         let signature = sign_l1_action(wallet, connection_id, is_mainnet)?;
@@ -733,7 +694,8 @@ impl ExchangeClient {
 
         let action = Actions::SetReferrer(SetReferrer { code });
 
-        let connection_id = action.hash(timestamp, self.vault_address)?;
+        let connection_id =
+            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
 
         let is_mainnet = self.http_client.is_mainnet();

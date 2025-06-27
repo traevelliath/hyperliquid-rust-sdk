@@ -18,9 +18,9 @@ async fn main() {
         )
         .init();
 
-    let mut info_client = InfoClient::new(NetworkType::Mainnet).await.unwrap();
+    let mut info_client = InfoClient::builder().network(NetworkType::Mainnet).build();
     let user =
-        alloy::primitives::Address::from_str("0xc64cc00b46101bd40aa1c3121195e85c0b0918d8").unwrap();
+        alloy::primitives::Address::from_str("0x21b5eb0ca859383f7d8b6906cddb115e92e80913").unwrap();
 
     let mut receiver = info_client
         .subscribe(Subscription::OrderUpdates { user })

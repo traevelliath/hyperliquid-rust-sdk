@@ -1,12 +1,12 @@
 use alloy::primitives::Address;
-use hyperliquid_sdk::{InfoClient, NetworkType};
+use hyperliquid_sdk::{InfoClient, Interval, NetworkType};
 
 const ADDRESS: &str = "0xc64cc00b46101bd40aa1c3121195e85c0b0918d8";
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
-    let info_client = InfoClient::new(NetworkType::Testnet).await.unwrap();
+    let info_client = InfoClient::builder().network(NetworkType::Testnet).build();
     open_orders_example(&info_client).await;
     user_state_example(&info_client).await;
     user_states_example(&info_client).await;
@@ -81,7 +81,7 @@ async fn recent_trades(info_client: &InfoClient) {
 
     tracing::info!(
         "Recent trades for {coin}: {:?}",
-        info_client.recent_trades(coin.to_string()).await.unwrap()
+        info_client.recent_trades(coin).await.unwrap()
     );
 }
 
@@ -110,7 +110,7 @@ async fn funding_history_example(info_client: &InfoClient) {
     tracing::info!(
         "Funding data history for {coin} between timestamps {start_timestamp} and {end_timestamp}: {:?}",
         info_client
-            .funding_history(coin.to_string(), start_timestamp, Some(end_timestamp))
+            .funding_history(coin, start_timestamp, Some(end_timestamp))
             .await
             .unwrap()
     );
@@ -121,7 +121,7 @@ async fn l2_snapshot_example(info_client: &InfoClient) {
 
     tracing::info!(
         "L2 snapshot data for {coin}: {:?}",
-        info_client.l2_snapshot(coin.to_string()).await.unwrap()
+        info_client.l2_snapshot(coin).await.unwrap()
     );
 }
 
@@ -129,17 +129,12 @@ async fn candles_snapshot_example(info_client: &InfoClient) {
     let coin = "ETH";
     let start_timestamp = 1690540602225;
     let end_timestamp = 1690569402225;
-    let interval = "1h";
+    let interval = Interval::OneHour;
 
     tracing::info!(
-        "Candles snapshot data for {coin} between timestamps {start_timestamp} and {end_timestamp} with interval {interval}: {:?}",
+        "Candles snapshot data: {:?}",
         info_client
-            .candles_snapshot(
-                coin.to_string(),
-                interval.to_string(),
-                start_timestamp,
-                end_timestamp
-            )
+            .candles_snapshot(coin, interval, start_timestamp, end_timestamp)
             .await
             .unwrap()
     );

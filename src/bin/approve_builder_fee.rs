@@ -10,7 +10,10 @@ async fn main() {
             .parse()
             .unwrap();
 
-    let exchange_client = ExchangeClient::new(signer, NetworkType::Testnet, None, None)
+    let exchange_client = ExchangeClient::builder()
+        .wallet(signer)
+        .network(NetworkType::Testnet)
+        .build()
         .await
         .unwrap();
 

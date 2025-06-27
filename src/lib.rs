@@ -17,7 +17,7 @@ pub use consts::{
 pub use errors::Error;
 pub use exchange::*;
 pub use helpers::{BaseUrl, bps_diff, shutdown_signal, truncate_float};
-pub use info::{info_client::*, *};
+pub use info::{client::*, *};
 pub use market_maker::{MarketMaker, MarketMakerInput, MarketMakerRestingOrder};
 pub use meta::{AssetMeta, Meta, SpotAssetMeta, SpotMeta};
 pub use req::NetworkType;
