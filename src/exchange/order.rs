@@ -98,13 +98,18 @@ pub struct ClientOrderRequest {
 }
 
 impl ClientOrderRequest {
-    pub(crate) fn convert(self, coin_to_asset: &HashMap<String, u32>) -> Result<OrderRequest> {
-        let order_type = match self.order_type {
-            ClientOrder::Limit(limit) => Order::Limit(Limit { tif: limit.tif }),
+    pub(crate) fn to_order_request(
+        &self,
+        coin_to_asset: &HashMap<String, u32>,
+    ) -> Result<OrderRequest> {
+        let order_type = match &self.order_type {
+            ClientOrder::Limit(limit) => Order::Limit(Limit {
+                tif: limit.tif.clone(),
+            }),
             ClientOrder::Trigger(trigger) => Order::Trigger(Trigger {
                 trigger_px: float_to_string_for_hashing(trigger.trigger_px),
                 is_market: trigger.is_market,
-                tpsl: trigger.tpsl,
+                tpsl: trigger.tpsl.clone(),
             }),
         };
         let &asset = coin_to_asset.get(&self.asset).ok_or(Error::AssetNotFound)?;

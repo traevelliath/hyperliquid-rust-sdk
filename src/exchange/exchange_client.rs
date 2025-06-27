@@ -37,6 +37,7 @@ use super::{BuilderInfo, ClientLimit, ClientOrder};
 #[derive(Debug)]
 pub struct ExchangeClient {
     pub http_client: HttpClient,
+    pub info: InfoClient,
     pub wallet: PrivateKeySigner,
     pub meta: Meta,
     pub vault_address: Option<Address>,
@@ -135,6 +136,7 @@ impl ExchangeClient {
             .add_pair_and_name_to_index_map(coin_to_asset);
 
         Ok(ExchangeClient {
+            info,
             wallet,
             meta,
             vault_address,
@@ -395,7 +397,7 @@ impl ExchangeClient {
         order: ClientOrderRequest,
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
-        self.bulk_order(vec![order], wallet).await
+        self.bulk_order(&[order], wallet).await
     }
 
     pub async fn order_with_builder(
@@ -404,23 +406,22 @@ impl ExchangeClient {
         wallet: Option<&PrivateKeySigner>,
         builder: BuilderInfo,
     ) -> Result<ExchangeResponseStatus> {
-        self.bulk_order_with_builder(vec![order], wallet, builder)
+        self.bulk_order_with_builder(&[order], wallet, builder)
             .await
     }
 
     pub async fn bulk_order(
         &self,
-        orders: Vec<ClientOrderRequest>,
+        orders: &[ClientOrderRequest],
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
         let wallet = wallet.unwrap_or(&self.wallet);
         let timestamp = next_nonce();
 
-        let mut transformed_orders = Vec::new();
-
-        for order in orders {
-            transformed_orders.push(order.convert(&self.coin_to_asset)?);
-        }
+        let transformed_orders = orders
+            .iter()
+            .filter_map(|order| order.to_order_request(&self.coin_to_asset).ok())
+            .collect::<Vec<_>>();
 
         let action = Actions::Order(BulkOrder {
             orders: transformed_orders,
@@ -437,7 +438,7 @@ impl ExchangeClient {
 
     pub async fn bulk_order_with_builder(
         &self,
-        orders: Vec<ClientOrderRequest>,
+        orders: &[ClientOrderRequest],
         wallet: Option<&PrivateKeySigner>,
         mut builder: BuilderInfo,
     ) -> Result<ExchangeResponseStatus> {
@@ -446,11 +447,10 @@ impl ExchangeClient {
 
         builder.builder = builder.builder.to_lowercase();
 
-        let mut transformed_orders = Vec::new();
-
-        for order in orders {
-            transformed_orders.push(order.convert(&self.coin_to_asset)?);
-        }
+        let transformed_orders = orders
+            .iter()
+            .filter_map(|order| order.to_order_request(&self.coin_to_asset).ok())
+            .collect::<Vec<_>>();
 
         let action = Actions::Order(BulkOrder {
             orders: transformed_orders,
@@ -470,19 +470,19 @@ impl ExchangeClient {
         cancel: ClientCancelRequest,
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
-        self.bulk_cancel(vec![cancel], wallet).await
+        self.bulk_cancel(&[cancel], wallet).await
     }
 
     pub async fn bulk_cancel(
         &self,
-        cancels: Vec<ClientCancelRequest>,
+        cancels: &[ClientCancelRequest],
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
         let wallet = wallet.unwrap_or(&self.wallet);
         let timestamp = next_nonce();
 
         let mut transformed_cancels = Vec::new();
-        for cancel in cancels.into_iter() {
+        for cancel in cancels.iter() {
             let &asset = self
                 .coin_to_asset
                 .get(&cancel.asset)
@@ -510,22 +510,22 @@ impl ExchangeClient {
         modify: ClientModifyRequest,
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
-        self.bulk_modify(vec![modify], wallet).await
+        self.bulk_modify(&[modify], wallet).await
     }
 
     pub async fn bulk_modify(
         &self,
-        modifies: Vec<ClientModifyRequest>,
+        modifies: &[ClientModifyRequest],
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
         let wallet = wallet.unwrap_or(&self.wallet);
         let timestamp = next_nonce();
 
         let mut transformed_modifies = Vec::new();
-        for modify in modifies.into_iter() {
+        for modify in modifies.iter() {
             transformed_modifies.push(ModifyRequest {
                 oid: modify.oid,
-                order: modify.order.convert(&self.coin_to_asset)?,
+                order: modify.order.to_order_request(&self.coin_to_asset)?,
             });
         }
 
@@ -546,19 +546,19 @@ impl ExchangeClient {
         cancel: ClientCancelRequestCloid,
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
-        self.bulk_cancel_by_cloid(vec![cancel], wallet).await
+        self.bulk_cancel_by_cloid(&[cancel], wallet).await
     }
 
     pub async fn bulk_cancel_by_cloid(
         &self,
-        cancels: Vec<ClientCancelRequestCloid>,
+        cancels: &[ClientCancelRequestCloid],
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
         let wallet = wallet.unwrap_or(&self.wallet);
         let timestamp = next_nonce();
 
         let mut transformed_cancels: Vec<CancelRequestCloid> = Vec::new();
-        for cancel in cancels.into_iter() {
+        for cancel in cancels.iter() {
             let &asset = self
                 .coin_to_asset
                 .get(&cancel.asset)
