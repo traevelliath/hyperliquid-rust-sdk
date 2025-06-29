@@ -1,4 +1,4 @@
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(serde::Serialize, Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Interval {
     #[serde(rename = "1m")]
     OneMinute,
@@ -30,7 +30,7 @@ pub enum Interval {
     OneMonth,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(serde::Serialize, Debug, PartialEq, Eq, Hash, Clone)]
 #[serde(tag = "type")]
 #[serde(rename_all = "camelCase")]
 pub enum Subscription {
@@ -308,11 +308,9 @@ impl WsManager {
                     serde_json::to_string(&subscription).unwrap_or_default(),
                 )
             })?;
-        let receiver = self
-            .send_subscription_data(subscription, Method::Subscribe)
-            .await;
 
-        Ok(receiver)
+        self.send_subscription_data(subscription, Method::Subscribe)
+            .await
     }
 
     /// Unsubscribe from a subscription event.
@@ -333,11 +331,9 @@ impl WsManager {
         {
             return Err(crate::Error::SubscriptionNotFound);
         }
-        let receiver = self
-            .send_subscription_data(subscription, Method::Unsubscribe)
-            .await;
 
-        Ok(receiver)
+        self.send_subscription_data(subscription, Method::Unsubscribe)
+            .await
     }
 
     pub(crate) async fn shutdown(self) {
@@ -348,16 +344,21 @@ impl WsManager {
         self.task.await.unwrap();
     }
 
+    pub(crate) fn get_listener(&self) -> tokio::sync::broadcast::Receiver<Message> {
+        self.response_tx.subscribe()
+    }
+
     async fn send_subscription_data(
         &self,
         subscription: Subscription,
         method: Method,
-    ) -> tokio::sync::broadcast::Receiver<Message> {
+    ) -> Result<tokio::sync::broadcast::Receiver<Message>, crate::Error> {
         if let Err(e) = self.subscription_tx.send((subscription, method)).await {
             tracing::error!("Failed to send subscription to subscription channel: {}", e);
+            return Err(crate::Error::WsManagerNotFound);
         }
 
-        self.response_tx.subscribe()
+        Ok(self.response_tx.subscribe())
     }
 
     async fn connect(

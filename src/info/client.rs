@@ -76,6 +76,16 @@ impl InfoClient {
             .await
     }
 
+    pub fn get_listener(&self) -> Result<tokio::sync::broadcast::Receiver<Message>> {
+        let receiver = self
+            .ws_manager
+            .as_ref()
+            .ok_or(Error::WsManagerNotFound)?
+            .get_listener();
+
+        Ok(receiver)
+    }
+
     async fn send_info_request<'a, T: for<'de> serde::Deserialize<'de>>(
         &self,
         info_request: InfoRequest<'a>,
