@@ -34,7 +34,7 @@ use super::{ClientLimit, ClientOrder};
 pub struct ExchangeClient {
     pub http_client: HttpClient,
     pub wallet: std::sync::Arc<PrivateKeySigner>,
-    pub vault_address: Option<std::sync::Arc<Address>>,
+    pub vault_address: Option<Address>,
     pub meta: std::sync::Arc<scc::HashMap<String, u32>>,
     pub coin_to_asset: std::sync::Arc<scc::HashMap<String, u32>>,
 }
@@ -84,7 +84,7 @@ impl ExchangeClient {
         Ok(ExchangeClient {
             http_client,
             wallet: std::sync::Arc::new(wallet),
-            vault_address: vault_address.map(std::sync::Arc::new),
+            vault_address,
             meta: std::sync::Arc::new(meta),
             coin_to_asset: std::sync::Arc::new(perp_map),
         })
@@ -174,7 +174,7 @@ impl ExchangeClient {
         usd: u64,
     ) -> Result<ExchangeResponseStatus> {
         let vault_address = match &self.vault_address {
-            Some(vault_address) => vault_address.as_ref(),
+            Some(vault_address) => vault_address,
             None => return Err(crate::Error::VaultAddressNotFound),
         };
         let timestamp = next_nonce();
