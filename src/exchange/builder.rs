@@ -1,7 +1,7 @@
 use crate::{BaseUrl, NetworkType, exchange::client::ExchangeClient, prelude::*, req::HttpClient};
 
 pub struct ExchangeClientBuilder {
-    http_client: HttpClient,
+    http_client: reqwest::Client,
     network: NetworkType,
     wallet: alloy::signers::local::PrivateKeySigner,
     meta: Option<crate::meta::Meta>,
@@ -12,10 +12,7 @@ pub struct ExchangeClientBuilder {
 impl Default for ExchangeClientBuilder {
     fn default() -> Self {
         Self {
-            http_client: HttpClient {
-                client: reqwest::Client::new(),
-                base_url: BaseUrl::Mainnet,
-            },
+            http_client: reqwest::Client::new(),
             network: NetworkType::Mainnet,
             wallet: alloy::signers::local::PrivateKeySigner::random(),
             meta: None,
@@ -26,7 +23,7 @@ impl Default for ExchangeClientBuilder {
 }
 
 impl ExchangeClientBuilder {
-    pub fn http_client(mut self, http_client: HttpClient) -> Self {
+    pub fn http_client(mut self, http_client: reqwest::Client) -> Self {
         self.http_client = http_client;
         self
     }
@@ -61,7 +58,14 @@ impl ExchangeClientBuilder {
 
     pub async fn build(self) -> Result<ExchangeClient> {
         ExchangeClient::new(
-            self.http_client,
+            HttpClient {
+                client: self.http_client,
+                base_url: match self.network {
+                    NetworkType::Mainnet => BaseUrl::Mainnet,
+                    NetworkType::Testnet => BaseUrl::Testnet,
+                    NetworkType::Localhost => BaseUrl::Localhost,
+                },
+            },
             self.wallet,
             self.network,
             self.meta,
