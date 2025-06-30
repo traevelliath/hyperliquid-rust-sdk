@@ -9,7 +9,7 @@ use crate::{
     },
     meta::{Meta, SpotMeta, SpotMetaAndAssetCtxs},
     prelude::*,
-    req::HttpClient,
+    req::{HttpClient, Endpoint},
     ws::{Subscription, WsManager},
 };
 
@@ -93,7 +93,7 @@ impl InfoClient {
         let data =
             serde_json::to_string(&info_request).map_err(|e| Error::JsonParse(e.to_string()))?;
 
-        let return_data = self.http_client.post("/info", data).await?;
+        let return_data = self.http_client.post(Endpoint::Info, data).await?;
         serde_json::from_str(&return_data).map_err(|e| Error::JsonParse(e.to_string()))
     }
 

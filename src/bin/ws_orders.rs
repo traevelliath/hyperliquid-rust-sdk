@@ -27,7 +27,6 @@ async fn main() {
         .await
         .unwrap();
 
-    let mut batch_id = 0;
     loop {
         tokio::select! {
             _ = shutdown_signal() => {
@@ -35,8 +34,6 @@ async fn main() {
             }
             Ok(m) = receiver.recv() => {
                 if let Message::OrderUpdates(order_updates) = m {
-                    batch_id += 1;
-                    let batch_size = order_updates.data.len();
                     for update in order_updates.data {
                         let order = update.order;
                         let side = if order.side == "B" { "BUY" } else { "SELL" };
@@ -45,8 +42,8 @@ async fn main() {
                             status = %update.status,
                             limit_price = %order.limit_px,
                             size = %order.sz,
-                            batch_id = %batch_id,
-                            batch_size = %batch_size,
+                            oid = %order.oid,
+                            cloid = ?order.cloid,
                             "NEW {side} ORDER:"
                         );
                     }

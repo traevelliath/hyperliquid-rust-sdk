@@ -20,7 +20,7 @@ async fn main() {
 
     let mut info_client = InfoClient::builder().network(NetworkType::Mainnet).build();
     let user =
-        alloy::primitives::Address::from_str("0x21b5eb0ca859383f7d8b6906cddb115e92e80913").unwrap();
+        alloy::primitives::Address::from_str("0x97E626F1B3639c6B131527F586A101a56D365F46").unwrap();
 
     let mut receiver = info_client
         .subscribe(Subscription::ActiveAssetData {

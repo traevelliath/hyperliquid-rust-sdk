@@ -14,7 +14,7 @@ use crate::{
     info::client::InfoClient,
     meta::Meta,
     prelude::*,
-    req::HttpClient,
+    req::{HttpClient, Endpoint},
     signature::sign_l1_action,
 };
 use crate::{ClassTransfer, SpotSend, SpotUser, VaultTransfer, Withdraw3};
@@ -109,7 +109,7 @@ impl ExchangeClient {
 
         let output = &self
             .http_client
-            .post("/exchange", res)
+            .post(Endpoint::Exchange, res)
             .await
             .map_err(|e| Error::JsonParse(e.to_string()))?;
 
@@ -160,7 +160,7 @@ impl ExchangeClient {
             class_transfer: ClassTransfer { usdc, to_perp },
         });
         let connection_id =
-            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
+            action.hash(timestamp, self.vault_address)?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
         let signature = sign_l1_action(signer, connection_id, is_mainnet)?;
@@ -185,7 +185,7 @@ impl ExchangeClient {
             usd,
         });
         let connection_id =
-            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
+            action.hash(timestamp, self.vault_address)?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
         let signature = sign_l1_action(&self.wallet, connection_id, is_mainnet)?;
@@ -371,7 +371,7 @@ impl ExchangeClient {
             builder: None,
         });
         let connection_id =
-            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
+            action.hash(timestamp, self.vault_address)?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
 
         let is_mainnet = self.http_client.is_mainnet();
@@ -399,7 +399,7 @@ impl ExchangeClient {
             builder: Some(builder),
         });
         let connection_id =
-            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
+            action.hash(timestamp, self.vault_address)?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
 
         let is_mainnet = self.http_client.is_mainnet();
@@ -436,7 +436,7 @@ impl ExchangeClient {
             cancels: transformed_cancels,
         });
         let connection_id =
-            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
+            action.hash(timestamp, self.vault_address)?;
 
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
@@ -469,7 +469,7 @@ impl ExchangeClient {
             modifies: transformed_modifies,
         });
         let connection_id =
-            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
+            action.hash(timestamp, self.vault_address)?;
 
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
@@ -508,7 +508,7 @@ impl ExchangeClient {
         });
 
         let connection_id =
-            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
+            action.hash(timestamp, self.vault_address)?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
         let signature = sign_l1_action(&self.wallet, connection_id, is_mainnet)?;
@@ -534,7 +534,7 @@ impl ExchangeClient {
             leverage,
         });
         let connection_id =
-            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
+            action.hash(timestamp, self.vault_address)?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
         let signature = sign_l1_action(&self.wallet, connection_id, is_mainnet)?;
@@ -560,7 +560,7 @@ impl ExchangeClient {
             ntli: amount,
         });
         let connection_id =
-            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
+            action.hash(timestamp, self.vault_address)?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
         let signature = sign_l1_action(&self.wallet, connection_id, is_mainnet)?;
@@ -658,7 +658,7 @@ impl ExchangeClient {
         let action = Actions::SetReferrer(SetReferrer { code });
 
         let connection_id =
-            action.hash(timestamp, self.vault_address.as_ref().map(|v| v.as_slice()))?;
+            action.hash(timestamp, self.vault_address)?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
 
         let is_mainnet = self.http_client.is_mainnet();

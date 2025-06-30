@@ -1,13 +1,21 @@
 use alloy::primitives::Address;
 use serde::{Deserialize, Serialize};
 
+#[derive(Deserialize, Serialize, Debug, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub enum LeverageType {
+    Isolated,
+    Cross,
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Leverage {
     #[serde(rename = "type")]
-    pub type_string: String,
+    pub type_string: LeverageType,
     pub value: u32,
-    pub raw_usd: Option<String>,
+    #[serde(default, deserialize_with = "option_string_to_f64")]
+    pub raw_usd: Option<f64>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -163,4 +171,18 @@ pub struct ReferrerState {
 #[serde(rename_all = "camelCase")]
 pub struct ReferrerData {
     pub required: String,
+}
+
+fn option_string_to_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    match opt {
+        Some(s) => match s.parse::<f64>() {
+            Ok(f) => Ok(Some(f)),
+            Err(_) => Ok(None), // Discard on parse error
+        },
+        None => Ok(None),
+    }
 }

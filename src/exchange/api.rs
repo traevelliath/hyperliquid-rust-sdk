@@ -14,7 +14,7 @@ use crate::{
     helpers::{next_nonce, uuid_to_hex_string},
     info::client::InfoClient,
     prelude::*,
-    req::HttpClient,
+    req::{HttpClient, Endpoint},
     signature::sign_l1_action,
 };
 use crate::{ClassTransfer, SpotSend, SpotUser, VaultTransfer, Withdraw3};
@@ -56,7 +56,7 @@ where
     let mut s = serializer.serialize_struct("Signature", 4)?;
     s.serialize_field("r", &signature.r())?;
     s.serialize_field("s", &signature.s())?;
-    s.serialize_field("y_parity", &signature.v())?;
+    // s.serialize_field("y_parity", &signature.v())?;
     s.serialize_field("v", &(27 + signature.v() as u8))?;
     s.end()
 }
@@ -85,7 +85,7 @@ impl Actions {
     pub(in crate::exchange) fn hash(
         &self,
         timestamp: u64,
-        vault_address: Option<&[u8]>,
+        vault_address: Option<Address>,
     ) -> Result<B256> {
         let mut bytes =
             rmp_serde::to_vec_named(self).map_err(|e| Error::RmpParse(e.to_string()))?;
@@ -145,7 +145,7 @@ impl ExchangeApi {
 
         let output = &self
             .http_client
-            .post("/exchange", res)
+            .post(Endpoint::Exchange, res)
             .await
             .map_err(|e| Error::JsonParse(e.to_string()))?;
 
@@ -215,7 +215,7 @@ impl ExchangeApi {
             is_deposit,
             usd,
         });
-        let connection_id = action.hash(timestamp, Some(vault_address.as_slice()))?;
+        let connection_id = action.hash(timestamp, Some(*vault_address))?;
         let action = serde_json::to_value(&action).map_err(|e| Error::JsonParse(e.to_string()))?;
         let is_mainnet = self.http_client.is_mainnet();
         let signature = sign_l1_action(signer, connection_id, is_mainnet)?;

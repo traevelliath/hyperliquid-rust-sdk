@@ -20,6 +20,12 @@ pub enum NetworkType {
     Localhost,
 }
 
+#[derive(Debug, Clone)]
+pub enum Endpoint {
+    Info,
+    Exchange,
+}
+
 async fn parse_response(response: reqwest::Response) -> Result<String> {
     let status = response.status();
     let text = response
@@ -57,9 +63,12 @@ async fn parse_response(response: reqwest::Response) -> Result<String> {
 }
 
 impl HttpClient {
-    pub async fn post(&self, url: &str, data: String) -> Result<String> {
-        let url = url::Url::parse(&format!("{}{}", self.base_url.get_url(), url))
-            .map_err(|e| Error::InvalidUrl(e.to_string()))?;
+    pub async fn post(&self, endpoint: Endpoint, data: String) -> Result<String> {
+        let url = {
+            let mut base = self.base_url.get_url().clone();
+            base.set_path(endpoint.into());
+            base
+        };
         let request = self
             .client
             .post(url)
@@ -86,6 +95,15 @@ impl HttpClient {
             BaseUrl::Mainnet => NetworkType::Mainnet,
             BaseUrl::Testnet => NetworkType::Testnet,
             BaseUrl::Localhost => NetworkType::Localhost,
+        }
+    }
+}
+
+impl From<Endpoint> for &str {
+    fn from(endpoint: Endpoint) -> Self {
+        match endpoint {
+            Endpoint::Info => "info",
+            Endpoint::Exchange => "exchange",
         }
     }
 }

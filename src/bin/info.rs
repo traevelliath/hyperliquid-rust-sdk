@@ -1,11 +1,24 @@
 use alloy::primitives::Address;
 use hyperliquid_sdk::{InfoClient, Interval, NetworkType};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-const ADDRESS: &str = "0xc64cc00b46101bd40aa1c3121195e85c0b0918d8";
+const ADDRESS: &str = "0x97E626F1B3639c6B131527F586A101a56D365F46";
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .event_format(tracing_subscriber::fmt::format().compact())
+                .with_timer(tracing_subscriber::fmt::time::LocalTime::rfc_3339()),
+        )
+        .with(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(tracing::Level::INFO.into())
+                .from_env_lossy(),
+        )
+        .init();
+
     let info_client = InfoClient::builder().network(NetworkType::Testnet).build();
     open_orders_example(&info_client).await;
     user_state_example(&info_client).await;
