@@ -31,7 +31,7 @@ async fn main() {
         order_type: ClientOrder::Limit(ClientLimit { tif: LimitTif::Gtc }),
     };
 
-    let response = exchange_client.order(order, None).await.unwrap();
+    let response = exchange_client.order(order).await.unwrap();
     tracing::info!("Order placed: {response:?}");
 
     let response = match response {
@@ -54,6 +54,6 @@ async fn main() {
     };
 
     // This response will return an error if order was filled (since you can't cancel a filled order), otherwise it will cancel the order
-    let response = exchange_client.cancel(cancel, None).await.unwrap();
+    let response = exchange_client.cancel(cancel).await.unwrap();
     tracing::info!("Order potentially cancelled: {response:?}");
 }

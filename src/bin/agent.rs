@@ -23,7 +23,7 @@ async fn main() {
         Create a new wallet with the agent.
         This agent cannot transfer or withdraw funds, but can for example place orders.
     */
-    let (private_key, response) = exchange_client.approve_agent(None).await.unwrap();
+    let (private_key, response) = exchange_client.approve_agent().await.unwrap();
     tracing::info!("Agent creation response: {response:?}");
 
     let wallet: PrivateKeySigner = PrivateKeySigner::from_signing_key(private_key);
@@ -47,7 +47,7 @@ async fn main() {
         order_type: ClientOrder::Limit(ClientLimit { tif: LimitTif::Gtc }),
     };
 
-    let response = exchange_client.order(order, None).await.unwrap();
+    let response = exchange_client.order(order).await.unwrap();
 
     tracing::info!("Order placed: {response:?}");
 }

@@ -21,13 +21,13 @@ async fn main() {
     let info_client = InfoClient::builder().network(NetworkType::Testnet).build();
 
     let response = exchange_client
-        .update_leverage(5, "ETH", false, None)
+        .update_leverage(5, "ETH", false)
         .await
         .unwrap();
     tracing::info!("Update leverage response: {response:?}");
 
     let response = exchange_client
-        .update_isolated_margin(1.0, "ETH", None)
+        .update_isolated_margin(1.0, "ETH")
         .await
         .unwrap();
 

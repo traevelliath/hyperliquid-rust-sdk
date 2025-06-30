@@ -25,7 +25,6 @@ async fn main() {
                 .parse()
                 .unwrap(),
             max_fee_rate.to_string(),
-            Some(&exchange_client.wallet),
         )
         .await;
     tracing::info!("resp: {resp:#?}");

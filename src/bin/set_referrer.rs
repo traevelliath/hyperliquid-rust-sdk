@@ -19,7 +19,7 @@ async fn main() {
 
     let code = "TESTNET".to_string();
 
-    let res = exchange_client.set_referrer(code, None).await;
+    let res = exchange_client.set_referrer(code).await;
 
     if let Ok(res) = res {
         tracing::info!("Exchange response: {res:#?}");

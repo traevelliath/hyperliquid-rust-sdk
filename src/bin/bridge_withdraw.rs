@@ -21,7 +21,7 @@ async fn main() {
     let destination = "0x0D1d9635D0640821d15e323ac8AdADfA9c111414";
 
     let res = exchange_client
-        .withdraw_from_bridge(usd, destination, None)
+        .withdraw_from_bridge(usd, destination)
         .await
         .unwrap();
     tracing::info!("Withdraw from bridge result: {res:?}");

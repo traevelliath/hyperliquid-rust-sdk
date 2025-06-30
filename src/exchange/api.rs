@@ -5,7 +5,7 @@ use crate::{
     exchange::{
         ClientCancelRequest, ClientOrderRequest,
         actions::{
-            ApproveAgent, ApproveBuilderFee, BulkCancel, BulkModify, BulkOrder, SetReferrer,
+            ApproveAgent, ApproveBuilderFee, BulkCancel, BulkModify, BulkOrder, Grouping, SetReferrer,
             UpdateIsolatedMargin, UpdateLeverage, UsdSend,
         },
         cancel::{CancelRequest, CancelRequestCloid},
@@ -256,7 +256,7 @@ impl ExchangeApi {
 
         let action = Actions::Order(BulkOrder {
             orders: transformed_orders,
-            grouping: "na".to_string(),
+            grouping: Grouping::Na,
             builder: None,
         });
         let connection_id = action.hash(timestamp, None)?;
@@ -284,7 +284,7 @@ impl ExchangeApi {
 
         let action = Actions::Order(BulkOrder {
             orders: transformed_orders,
-            grouping: "na".to_string(),
+            grouping: Grouping::Na,
             builder: Some(builder),
         });
         let connection_id = action.hash(timestamp, None)?;

@@ -22,7 +22,7 @@ async fn main() {
     let token = "PURR:0xc4bf3f870c0e9465323c0b6ed28096c2";
 
     let res = exchange_client
-        .spot_transfer(amount, destination, token, None)
+        .spot_transfer(amount, destination, token)
         .await
         .unwrap();
 

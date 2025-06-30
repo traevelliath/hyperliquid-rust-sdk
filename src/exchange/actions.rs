@@ -46,9 +46,17 @@ pub struct UpdateIsolatedMargin {
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub enum Grouping {
+    Na,
+    NormalTpsl,
+    PositionTpsl,
+}
+
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct BulkOrder {
     pub orders: Vec<OrderRequest>,
-    pub grouping: String,
+    pub grouping: Grouping,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub builder: Option<BuilderInfo>,
 }
