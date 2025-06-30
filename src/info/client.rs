@@ -147,9 +147,9 @@ impl InfoClient {
         self.send_info_request(input).await
     }
 
-    pub async fn funding_history<'a>(
+    pub async fn funding_history(
         &self,
-        coin: &'a str,
+        coin: &str,
         start_time: u64,
         end_time: Option<u64>,
     ) -> Result<Vec<FundingHistoryResponse>> {
@@ -175,19 +175,19 @@ impl InfoClient {
         self.send_info_request(input).await
     }
 
-    pub async fn recent_trades<'a>(&self, coin: &'a str) -> Result<Vec<RecentTradesResponse>> {
+    pub async fn recent_trades(&self, coin: &str) -> Result<Vec<RecentTradesResponse>> {
         let input = InfoRequest::RecentTrades { coin };
         self.send_info_request(input).await
     }
 
-    pub async fn l2_snapshot<'a>(&self, coin: &'a str) -> Result<L2SnapshotResponse> {
+    pub async fn l2_snapshot(&self, coin: &str) -> Result<L2SnapshotResponse> {
         let input = InfoRequest::L2Book { coin };
         self.send_info_request(input).await
     }
 
-    pub async fn candles_snapshot<'a>(
+    pub async fn candles_snapshot(
         &self,
-        coin: &'a str,
+        coin: &str,
         interval: crate::ws::Interval,
         start_time: u64,
         end_time: u64,
