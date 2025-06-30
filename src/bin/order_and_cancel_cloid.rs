@@ -2,7 +2,7 @@ use alloy::signers::local::PrivateKeySigner;
 
 use hyperliquid_sdk::{
     ClientCancelRequestCloid, ClientLimit, ClientOrder, ClientOrderRequest, ExchangeClient,
-    NetworkType,
+    LimitTif, NetworkType,
 };
 use std::{thread::sleep, time::Duration};
 use uuid::Uuid;
@@ -26,15 +26,13 @@ async fn main() {
     // Order and Cancel with cloid
     let cloid = Uuid::new_v4();
     let order = ClientOrderRequest {
-        asset: "ETH".to_string(),
+        asset: "ETH",
         is_buy: true,
         reduce_only: false,
         limit_px: 1800.0,
         sz: 0.01,
         cloid: Some(cloid),
-        order_type: ClientOrder::Limit(ClientLimit {
-            tif: "Gtc".to_string(),
-        }),
+        order_type: ClientOrder::Limit(ClientLimit { tif: LimitTif::Gtc }),
     };
 
     let response = exchange_client.order(order, None).await.unwrap();
@@ -44,7 +42,7 @@ async fn main() {
     sleep(Duration::from_secs(10));
 
     let cancel = ClientCancelRequestCloid {
-        asset: "ETH".to_string(),
+        asset: "ETH",
         cloid,
     };
 

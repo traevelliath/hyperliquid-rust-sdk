@@ -2,7 +2,7 @@ use alloy::signers::local::PrivateKeySigner;
 
 use hyperliquid_sdk::{
     BuilderInfo, ClientCancelRequest, ClientLimit, ClientOrder, ClientOrderRequest, ExchangeClient,
-    ExchangeDataStatus, ExchangeResponseStatus, NetworkType,
+    ExchangeDataStatus, ExchangeResponseStatus, LimitTif, NetworkType,
 };
 use std::{thread::sleep, time::Duration};
 
@@ -23,15 +23,13 @@ async fn main() {
         .unwrap();
 
     let order = ClientOrderRequest {
-        asset: "ETH".to_string(),
+        asset: "ETH",
         is_buy: true,
         reduce_only: false,
         limit_px: 1800.0,
         sz: 0.01,
         cloid: None,
-        order_type: ClientOrder::Limit(ClientLimit {
-            tif: "Gtc".to_string(),
-        }),
+        order_type: ClientOrder::Limit(ClientLimit { tif: LimitTif::Gtc }),
     };
 
     let fee = 1u64;
@@ -64,10 +62,7 @@ async fn main() {
     // So you can see the order before it's cancelled
     sleep(Duration::from_secs(10));
 
-    let cancel = ClientCancelRequest {
-        asset: "ETH".to_string(),
-        oid,
-    };
+    let cancel = ClientCancelRequest { asset: "ETH", oid };
 
     // This response will return an error if order was filled (since you can't cancel a filled order), otherwise it will cancel the order
     let response = exchange_client.cancel(cancel, None).await.unwrap();

@@ -46,8 +46,8 @@ pub struct UpdateIsolatedMargin {
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct BulkOrder<'a> {
-    pub orders: Vec<OrderRequest<'a>>,
+pub struct BulkOrder {
+    pub orders: Vec<OrderRequest>,
     pub grouping: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub builder: Option<BuilderInfo>,
@@ -61,8 +61,8 @@ pub struct BulkCancel {
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct BulkModify<'a> {
-    pub modifies: Vec<ModifyRequest<'a>>,
+pub struct BulkModify {
+    pub modifies: Vec<ModifyRequest>,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -173,8 +173,8 @@ pub struct ClassTransfer {
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct VaultTransfer<'a> {
-    pub vault_address: &'a Address,
+pub struct VaultTransfer {
+    pub vault_address: Address,
     pub is_deposit: bool,
     pub usd: u64,
 }

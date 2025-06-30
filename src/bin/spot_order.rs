@@ -1,7 +1,7 @@
 use alloy::signers::local::PrivateKeySigner;
 use hyperliquid_sdk::{
     ClientCancelRequest, ClientLimit, ClientOrder, ClientOrderRequest, ExchangeClient,
-    ExchangeDataStatus, ExchangeResponseStatus, NetworkType,
+    ExchangeDataStatus, ExchangeResponseStatus, LimitTif, NetworkType,
 };
 use std::{thread::sleep, time::Duration};
 
@@ -22,15 +22,13 @@ async fn main() {
         .unwrap();
 
     let order = ClientOrderRequest {
-        asset: "XYZTWO/USDC".to_string(),
+        asset: "XYZTWO/USDC",
         is_buy: true,
         reduce_only: false,
         limit_px: 0.00002378,
         sz: 1000000.0,
         cloid: None,
-        order_type: ClientOrder::Limit(ClientLimit {
-            tif: "Gtc".to_string(),
-        }),
+        order_type: ClientOrder::Limit(ClientLimit { tif: LimitTif::Gtc }),
     };
 
     let response = exchange_client.order(order, None).await.unwrap();
@@ -51,7 +49,7 @@ async fn main() {
     sleep(Duration::from_secs(10));
 
     let cancel = ClientCancelRequest {
-        asset: "HFUN/USDC".to_string(),
+        asset: "HFUN/USDC",
         oid,
     };
 

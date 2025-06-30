@@ -2,8 +2,8 @@ use alloy::{primitives::Address, signers::local::PrivateKeySigner};
 
 use crate::{
     ClientCancelRequest, ClientLimit, ClientOrder, ClientOrderRequest, EPSILON, ExchangeClient,
-    ExchangeDataStatus, ExchangeResponseStatus, InfoClient, Message, Subscription, UserData,
-    bps_diff, req::NetworkType, truncate_float,
+    ExchangeDataStatus, ExchangeResponseStatus, InfoClient, LimitTif, Message, Subscription,
+    UserData, bps_diff, req::NetworkType, truncate_float,
 };
 #[derive(Debug)]
 pub struct MarketMakerRestingOrder {
@@ -142,7 +142,7 @@ impl MarketMaker {
         }
     }
 
-    async fn attempt_cancel(&self, asset: String, oid: u64) -> bool {
+    async fn attempt_cancel(&self, asset: &str, oid: u64) -> bool {
         let cancel = self
             .exchange_client
             .cancel(ClientCancelRequest { asset, oid }, None)
@@ -180,13 +180,7 @@ impl MarketMaker {
         false
     }
 
-    async fn place_order(
-        &self,
-        asset: String,
-        amount: f64,
-        price: f64,
-        is_buy: bool,
-    ) -> (f64, u64) {
+    async fn place_order(&self, asset: &str, amount: f64, price: f64, is_buy: bool) -> (f64, u64) {
         let order = self
             .exchange_client
             .order(
@@ -197,9 +191,7 @@ impl MarketMaker {
                     limit_px: price,
                     sz: amount,
                     cloid: None,
-                    order_type: ClientOrder::Limit(ClientLimit {
-                        tif: "Gtc".to_string(),
-                    }),
+                    order_type: ClientOrder::Limit(ClientLimit { tif: LimitTif::Gtc }),
                 },
                 None,
             )
@@ -278,7 +270,7 @@ impl MarketMaker {
         // TODO: Don't block on cancels
         if self.lower_resting.oid != 0 && self.lower_resting.position > EPSILON && lower_change {
             let cancel = self
-                .attempt_cancel(self.asset.clone(), self.lower_resting.oid)
+                .attempt_cancel(&self.asset, self.lower_resting.oid)
                 .await;
             // If we were unable to cancel, it means we got a fill, so wait until we receive that event to do anything
             if !cancel {
@@ -289,7 +281,7 @@ impl MarketMaker {
 
         if self.upper_resting.oid != 0 && self.upper_resting.position > EPSILON && upper_change {
             let cancel = self
-                .attempt_cancel(self.asset.clone(), self.upper_resting.oid)
+                .attempt_cancel(&self.asset, self.upper_resting.oid)
                 .await;
             if !cancel {
                 return;
@@ -300,7 +292,7 @@ impl MarketMaker {
         // Consider putting a new order up
         if lower_order_amount > EPSILON && lower_change {
             let (amount_resting, oid) = self
-                .place_order(self.asset.clone(), lower_order_amount, lower_price, true)
+                .place_order(&self.asset, lower_order_amount, lower_price, true)
                 .await;
 
             self.lower_resting.oid = oid;
@@ -317,7 +309,7 @@ impl MarketMaker {
 
         if upper_order_amount > EPSILON && upper_change {
             let (amount_resting, oid) = self
-                .place_order(self.asset.clone(), upper_order_amount, upper_price, false)
+                .place_order(&self.asset, upper_order_amount, upper_price, false)
                 .await;
             self.upper_resting.oid = oid;
             self.upper_resting.position = amount_resting;

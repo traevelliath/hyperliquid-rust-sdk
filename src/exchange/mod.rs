@@ -14,7 +14,7 @@ pub use cancel::{ClientCancelRequest, ClientCancelRequestCloid};
 pub use client::*;
 pub use modify::{ClientModifyRequest, ModifyRequest};
 pub use order::{
-    BuilderInfo, ClientLimit, ClientOrder, ClientOrderRequest, ClientTrigger, MarketCloseParams,
-    MarketOrderParams, Order,
+    BuilderInfo, ClientLimit, ClientOrder, ClientOrderRequest, ClientTrigger, LimitTif,
+    MarketCloseParams, MarketOrderParams, Order, TriggerTpsl,
 };
 pub use response::*;

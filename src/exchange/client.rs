@@ -27,7 +27,7 @@ use alloy::{primitives::Address, signers::local::PrivateKeySigner};
 
 use super::api::{Actions, ExchangePayload};
 use super::cancel::ClientCancelRequestCloid;
-use super::order::{BuilderInfo, MarketCloseParams, MarketOrderParams};
+use super::order::{BuilderInfo, LimitTif, MarketCloseParams, MarketOrderParams};
 use super::{ClientLimit, ClientOrder};
 
 #[derive(Debug, Clone)]
@@ -180,7 +180,7 @@ impl ExchangeClient {
         let timestamp = next_nonce();
 
         let action = Actions::VaultTransfer(VaultTransfer {
-            vault_address,
+            vault_address: *vault_address,
             is_deposit,
             usd,
         });
@@ -203,15 +203,13 @@ impl ExchangeClient {
             .await?;
 
         let order = ClientOrderRequest {
-            asset: params.asset.to_string(),
+            asset: params.asset,
             is_buy: params.is_buy,
             reduce_only: false,
             limit_px: px,
             sz: round_to_decimals(params.sz, sz_decimals),
             cloid: params.cloid,
-            order_type: ClientOrder::Limit(ClientLimit {
-                tif: "Ioc".to_string(),
-            }),
+            order_type: ClientOrder::Limit(ClientLimit { tif: LimitTif::Ioc }),
         };
 
         self.order(order, params.wallet).await
@@ -228,15 +226,13 @@ impl ExchangeClient {
             .await?;
 
         let order = ClientOrderRequest {
-            asset: params.asset.to_string(),
+            asset: params.asset,
             is_buy: params.is_buy,
             reduce_only: false,
             limit_px: px,
             sz: round_to_decimals(params.sz, sz_decimals),
             cloid: params.cloid,
-            order_type: ClientOrder::Limit(ClientLimit {
-                tif: "Ioc".to_string(),
-            }),
+            order_type: ClientOrder::Limit(ClientLimit { tif: LimitTif::Ioc }),
         };
 
         self.order_with_builder(order, params.wallet, builder).await
@@ -273,15 +269,13 @@ impl ExchangeClient {
         let sz = round_to_decimals(params.sz.unwrap_or_else(|| szi.abs()), sz_decimals);
 
         let order = ClientOrderRequest {
-            asset: params.asset.to_string(),
+            asset: params.asset,
             is_buy: szi < 0.0,
             reduce_only: true,
             limit_px: px,
             sz,
             cloid: params.cloid,
-            order_type: ClientOrder::Limit(ClientLimit {
-                tif: "Ioc".to_string(),
-            }),
+            order_type: ClientOrder::Limit(ClientLimit { tif: LimitTif::Ioc }),
         };
 
         self.order(order, Some(signer)).await
@@ -346,7 +340,7 @@ impl ExchangeClient {
 
     pub async fn order(
         &self,
-        order: ClientOrderRequest,
+        order: ClientOrderRequest<'_>,
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_order(&[order], wallet).await
@@ -354,7 +348,7 @@ impl ExchangeClient {
 
     pub async fn order_with_builder(
         &self,
-        order: ClientOrderRequest,
+        order: ClientOrderRequest<'_>,
         wallet: Option<&PrivateKeySigner>,
         builder: BuilderInfo,
     ) -> Result<ExchangeResponseStatus> {
@@ -364,7 +358,7 @@ impl ExchangeClient {
 
     pub async fn bulk_order(
         &self,
-        orders: &[ClientOrderRequest],
+        orders: &[ClientOrderRequest<'_>],
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
         let wallet = wallet.unwrap_or(&self.wallet);
@@ -391,7 +385,7 @@ impl ExchangeClient {
 
     pub async fn bulk_order_with_builder(
         &self,
-        orders: &[ClientOrderRequest],
+        orders: &[ClientOrderRequest<'_>],
         wallet: Option<&PrivateKeySigner>,
         mut builder: BuilderInfo,
     ) -> Result<ExchangeResponseStatus> {
@@ -421,7 +415,7 @@ impl ExchangeClient {
 
     pub async fn cancel(
         &self,
-        cancel: ClientCancelRequest,
+        cancel: ClientCancelRequest<'_>,
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_cancel(&[cancel], wallet).await
@@ -429,7 +423,7 @@ impl ExchangeClient {
 
     pub async fn bulk_cancel(
         &self,
-        cancels: &[ClientCancelRequest],
+        cancels: &[ClientCancelRequest<'_>],
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
         let wallet = wallet.unwrap_or(&self.wallet);
@@ -439,7 +433,7 @@ impl ExchangeClient {
         for cancel in cancels.iter() {
             let asset = self
                 .coin_to_asset
-                .read(&cancel.asset, |_, asset| *asset)
+                .read(cancel.asset, |_, asset| *asset)
                 .ok_or(Error::AssetNotFound)?;
             transformed_cancels.push(CancelRequest {
                 asset,
@@ -462,7 +456,7 @@ impl ExchangeClient {
 
     pub async fn modify(
         &self,
-        modify: ClientModifyRequest,
+        modify: ClientModifyRequest<'_>,
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_modify(&[modify], wallet).await
@@ -470,7 +464,7 @@ impl ExchangeClient {
 
     pub async fn bulk_modify(
         &self,
-        modifies: &[ClientModifyRequest],
+        modifies: &[ClientModifyRequest<'_>],
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
         let wallet = wallet.unwrap_or(&self.wallet);
@@ -499,7 +493,7 @@ impl ExchangeClient {
 
     pub async fn cancel_by_cloid(
         &self,
-        cancel: ClientCancelRequestCloid,
+        cancel: ClientCancelRequestCloid<'_>,
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_cancel_by_cloid(&[cancel], wallet).await
@@ -507,7 +501,7 @@ impl ExchangeClient {
 
     pub async fn bulk_cancel_by_cloid(
         &self,
-        cancels: &[ClientCancelRequestCloid],
+        cancels: &[ClientCancelRequestCloid<'_>],
         wallet: Option<&PrivateKeySigner>,
     ) -> Result<ExchangeResponseStatus> {
         let wallet = wallet.unwrap_or(&self.wallet);
@@ -517,7 +511,7 @@ impl ExchangeClient {
         for cancel in cancels.iter() {
             let asset = self
                 .coin_to_asset
-                .read(&cancel.asset, |_, asset| *asset)
+                .read(cancel.asset, |_, asset| *asset)
                 .ok_or(Error::AssetNotFound)?;
             transformed_cancels.push(CancelRequestCloid {
                 asset,
@@ -773,7 +767,7 @@ mod tests {
                 limit_px: "2000.0".to_string(),
                 sz: "3.5".to_string(),
                 reduce_only: false,
-                order_type: Order::Limit(Limit { tif: "Ioc" }),
+                order_type: Order::Limit(Limit { tif: LimitTif::Ioc }),
                 cloid: None,
             }],
             grouping: "na".to_string(),
@@ -808,7 +802,7 @@ mod tests {
                 limit_px: "2000.0".to_string(),
                 sz: "3.5".to_string(),
                 reduce_only: false,
-                order_type: Order::Limit(Limit { tif: "Ioc" }),
+                order_type: Order::Limit(Limit { tif: LimitTif::Ioc }),
                 cloid: Some(uuid_to_hex_string(cloid.unwrap())),
             }],
             grouping: "na".to_string(),
@@ -833,6 +827,8 @@ mod tests {
 
     #[test]
     fn test_tpsl_order_action_hashing() -> Result<()> {
+        use crate::exchange::order::TriggerTpsl;
+
         for (tpsl, mainnet_signature, testnet_signature) in [
             (
                 "tp",
@@ -856,7 +852,7 @@ mod tests {
                     order_type: Order::Trigger(Trigger {
                         trigger_px: "2000.0".to_string(),
                         is_market: true,
-                        tpsl: tpsl,
+                        tpsl: TriggerTpsl::from_str(tpsl).unwrap(),
                     }),
                     cloid: None,
                 }],

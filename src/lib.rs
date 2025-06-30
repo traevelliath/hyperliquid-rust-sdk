@@ -22,3 +22,5 @@ pub use market_maker::{MarketMaker, MarketMakerInput, MarketMakerRestingOrder};
 pub use meta::{AssetMeta, Meta, SpotAssetMeta, SpotMeta};
 pub use req::NetworkType;
 pub use ws::*;
+
+pub use uuid::Uuid;

@@ -70,4 +70,9 @@ pub enum Error {
     TlsConnector(String),
     #[error("Tcp stream error: {0:?}")]
     TcpStream(String),
+
+    #[error("Invalid trigger tpsl: {0}")]
+    InvalidTriggerTpsl(String),
+    #[error("Invalid limit tif: {0}")]
+    InvalidLimitTif(String),
 }

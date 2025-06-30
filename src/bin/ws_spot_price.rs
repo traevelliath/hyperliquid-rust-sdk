@@ -35,6 +35,10 @@ async fn main() {
                     tracing::info!(
                         coin = %active_spot_asset_ctx.data.coin,
                         circulating_supply = %active_spot_asset_ctx.data.ctx.circulating_supply,
+                        mark_px = %active_spot_asset_ctx.data.ctx.shared.mark_px,
+                        mid_px = ?active_spot_asset_ctx.data.ctx.shared.mid_px,
+                        day_ntl_vlm = %active_spot_asset_ctx.data.ctx.shared.day_ntl_vlm,
+                        prev_day_px = %active_spot_asset_ctx.data.ctx.shared.prev_day_px,
                         "NEW SPOT ASSET CTX:"
                     );
                 }

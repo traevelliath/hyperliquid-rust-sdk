@@ -1,6 +1,8 @@
 use alloy::signers::local::PrivateKeySigner;
 
-use hyperliquid_sdk::{ClientLimit, ClientOrder, ClientOrderRequest, ExchangeClient, NetworkType};
+use hyperliquid_sdk::{
+    ClientLimit, ClientOrder, ClientOrderRequest, ExchangeClient, LimitTif, NetworkType,
+};
 
 #[tokio::main]
 async fn main() {
@@ -36,15 +38,13 @@ async fn main() {
         .unwrap();
 
     let order = ClientOrderRequest {
-        asset: "ETH".to_string(),
+        asset: "ETH",
         is_buy: true,
         reduce_only: false,
         limit_px: 1795.0,
         sz: 0.01,
         cloid: None,
-        order_type: ClientOrder::Limit(ClientLimit {
-            tif: "Gtc".to_string(),
-        }),
+        order_type: ClientOrder::Limit(ClientLimit { tif: LimitTif::Gtc }),
     };
 
     let response = exchange_client.order(order, None).await.unwrap();
