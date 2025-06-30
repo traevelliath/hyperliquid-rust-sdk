@@ -1,4 +1,4 @@
-use alloy::primitives::Address;
+use ethers::types::H160;
 use hyperliquid_sdk::{InfoClient, Interval, NetworkType};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -7,11 +7,6 @@ const ADDRESS: &str = "0x97E626F1B3639c6B131527F586A101a56D365F46";
 #[tokio::main]
 async fn main() {
     tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::fmt::layer()
-                .event_format(tracing_subscriber::fmt::format().compact())
-                .with_timer(tracing_subscriber::fmt::time::LocalTime::rfc_3339()),
-        )
         .with(
             tracing_subscriber::EnvFilter::builder()
                 .with_default_directive(tracing::Level::INFO.into())
@@ -40,7 +35,7 @@ async fn main() {
     historical_orders_example(&info_client).await;
 }
 
-fn address() -> Address {
+fn address() -> H160 {
     ADDRESS.to_string().parse().unwrap()
 }
 

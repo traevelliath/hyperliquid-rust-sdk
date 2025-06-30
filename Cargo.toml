@@ -16,7 +16,8 @@ rustls-tls = ["reqwest/rustls-tls"]
 default = ["native-tls"]
 
 [dependencies]
-alloy = { version = "1", features = ["dyn-abi", "sol-types", "signer-local"] }
+# alloy = { version = "1", features = ["dyn-abi", "sol-types", "signer-local"] }
+ethers = { version = "2", features = ["abigen", "eip712"] }
 lazy_static = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json"] }
 

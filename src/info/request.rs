@@ -29,24 +29,24 @@ impl<'a> CandleSnapshotRequest<'a> {
 pub enum InfoRequest<'a> {
     #[serde(rename = "clearinghouseState")]
     UserState {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
     #[serde(rename = "batchClearinghouseStates")]
     UserStates {
-        users: Vec<alloy::primitives::Address>,
+        users: Vec<ethers::types::H160>,
     },
     #[serde(rename = "spotClearinghouseState")]
     UserTokenBalances {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
     UserFees {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
     OpenOrders {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
     OrderStatus {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
         oid: u64,
     },
     Meta,
@@ -54,7 +54,7 @@ pub enum InfoRequest<'a> {
     SpotMetaAndAssetCtxs,
     AllMids,
     UserFills {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
     #[serde(rename_all = "camelCase")]
     FundingHistory {
@@ -64,7 +64,7 @@ pub enum InfoRequest<'a> {
     },
     #[serde(rename_all = "camelCase")]
     UserFunding {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
         start_time: u64,
         end_time: Option<u64>,
     },
@@ -79,9 +79,9 @@ pub enum InfoRequest<'a> {
         req: CandleSnapshotRequest<'a>,
     },
     Referral {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
     HistoricalOrders {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
 }

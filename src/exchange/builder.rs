@@ -3,18 +3,19 @@ use crate::{BaseUrl, NetworkType, exchange::client::ExchangeClient, prelude::*, 
 pub struct ExchangeClientBuilder {
     http_client: reqwest::Client,
     network: NetworkType,
-    wallet: alloy::signers::local::PrivateKeySigner,
+    wallet: ethers::signers::LocalWallet,
     meta: Option<crate::meta::Meta>,
-    vault_address: Option<alloy::primitives::Address>,
+    vault_address: Option<ethers::types::H160>,
     coin_to_asset: scc::HashMap<String, u32>,
 }
 
 impl Default for ExchangeClientBuilder {
     fn default() -> Self {
+        let mut rng = ethers::core::rand::thread_rng();
         Self {
             http_client: reqwest::Client::new(),
             network: NetworkType::Mainnet,
-            wallet: alloy::signers::local::PrivateKeySigner::random(),
+            wallet: ethers::signers::LocalWallet::new(&mut rng),
             meta: None,
             vault_address: None,
             coin_to_asset: scc::HashMap::new(),
@@ -33,7 +34,7 @@ impl ExchangeClientBuilder {
         self
     }
 
-    pub fn wallet(mut self, wallet: alloy::signers::local::PrivateKeySigner) -> Self {
+    pub fn wallet(mut self, wallet: ethers::signers::LocalWallet) -> Self {
         self.wallet = wallet;
         self
     }
@@ -43,7 +44,7 @@ impl ExchangeClientBuilder {
         self
     }
 
-    pub fn vault_address(mut self, vault_address: alloy::primitives::Address) -> Self {
+    pub fn vault_address(mut self, vault_address: ethers::types::H160) -> Self {
         self.vault_address = Some(vault_address);
         self
     }

@@ -1,14 +1,21 @@
-use alloy::signers::local::PrivateKeySigner;
+use ethers::signers::{LocalWallet, Signer};
 
 use hyperliquid_sdk::{
     ClientLimit, ClientOrder, ClientOrderRequest, ExchangeClient, LimitTif, NetworkType,
 };
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(tracing::Level::DEBUG.into())
+                .from_env_lossy(),
+        )
+        .init();
     // Key was randomly generated for testing and shouldn't be used with any real funds
-    let signer: PrivateKeySigner =
+    let signer: LocalWallet =
         "e908f86dbb4d55ac876378565aafeabc187f6690f046459397b17d9b9a19688e"
             .parse()
             .unwrap();
@@ -23,10 +30,8 @@ async fn main() {
         Create a new wallet with the agent.
         This agent cannot transfer or withdraw funds, but can for example place orders.
     */
-    let (private_key, response) = exchange_client.approve_agent().await.unwrap();
+    let (wallet, response) = exchange_client.approve_agent().await.unwrap();
     tracing::info!("Agent creation response: {response:?}");
-
-    let wallet: PrivateKeySigner = PrivateKeySigner::from_signing_key(private_key);
 
     tracing::info!("Agent address: {:?}", wallet.address());
 

@@ -5,8 +5,8 @@ use crate::{
     exchange::{
         ClientCancelRequest, ClientOrderRequest,
         actions::{
-            ApproveAgent, ApproveBuilderFee, BulkCancel, BulkModify, BulkOrder, Grouping, SetReferrer,
-            UpdateIsolatedMargin, UpdateLeverage, UsdSend,
+            ApproveAgent, ApproveBuilderFee, BulkCancel, BulkModify, BulkOrder, Grouping,
+            SetReferrer, UpdateIsolatedMargin, UpdateLeverage, UsdSend,
         },
         cancel::{CancelRequest, CancelRequestCloid},
         modify::{ClientModifyRequest, ModifyRequest},
@@ -14,18 +14,15 @@ use crate::{
     helpers::{next_nonce, uuid_to_hex_string},
     info::client::InfoClient,
     prelude::*,
-    req::{HttpClient, Endpoint},
+    req::{Endpoint, HttpClient},
     signature::sign_l1_action,
 };
 use crate::{ClassTransfer, SpotSend, SpotUser, VaultTransfer, Withdraw3};
 
-use alloy::primitives::{B256, U256, keccak256};
-use alloy::signers::Signature;
-use alloy::signers::k256::ecdsa::SigningKey;
-use alloy::{primitives::Address, signers::local::PrivateKeySigner};
-
-use serde::Serialize;
-use serde::ser::SerializeStruct;
+use ethers::{
+    signers::{LocalWallet, Signer},
+    types::{H160, H256, Signature},
+};
 
 use super::cancel::ClientCancelRequestCloid;
 use super::order::BuilderInfo;
@@ -36,32 +33,16 @@ pub struct ExchangeApi {
     pub coin_to_asset: std::sync::Arc<scc::HashMap<String, u32>>,
 }
 
-#[derive(Serialize)]
+#[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(in crate::exchange) struct ExchangePayload {
     pub(in crate::exchange) action: serde_json::Value,
-    #[serde(serialize_with = "serialize_signature_legacy")]
     pub(in crate::exchange) signature: Signature,
     pub(in crate::exchange) nonce: u64,
-    pub(in crate::exchange) vault_address: Option<String>,
+    pub(in crate::exchange) vault_address: Option<H160>,
 }
 
-pub fn serialize_signature_legacy<S>(
-    signature: &Signature,
-    serializer: S,
-) -> std::result::Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let mut s = serializer.serialize_struct("Signature", 4)?;
-    s.serialize_field("r", &signature.r())?;
-    s.serialize_field("s", &signature.s())?;
-    // s.serialize_field("y_parity", &signature.v())?;
-    s.serialize_field("v", &(27 + signature.v() as u8))?;
-    s.end()
-}
-
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(tag = "type")]
 #[serde(rename_all = "camelCase")]
 pub enum Actions {
@@ -85,18 +66,19 @@ impl Actions {
     pub(in crate::exchange) fn hash(
         &self,
         timestamp: u64,
-        vault_address: Option<Address>,
-    ) -> Result<B256> {
+        vault_address: Option<H160>,
+    ) -> Result<H256> {
         let mut bytes =
             rmp_serde::to_vec_named(self).map_err(|e| Error::RmpParse(e.to_string()))?;
         bytes.extend(timestamp.to_be_bytes());
         if let Some(vault_address) = vault_address {
             bytes.push(1);
-            bytes.extend(vault_address);
+            bytes.extend(vault_address.to_fixed_bytes());
         } else {
             bytes.push(0);
         }
-        Ok(keccak256(bytes))
+
+        Ok(H256::from(ethers::utils::keccak256(bytes)))
     }
 }
 
@@ -130,13 +112,13 @@ impl ExchangeApi {
         action: serde_json::Value,
         signature: Signature,
         nonce: u64,
-        vault_address: Option<&Address>,
+        vault_address: Option<H160>,
     ) -> Result<ExchangeResponseStatus> {
         let exchange_payload = ExchangePayload {
             action,
             signature,
             nonce,
-            vault_address: vault_address.map(|v| v.to_string()),
+            vault_address,
         };
 
         let res = serde_json::to_string(&exchange_payload)
@@ -156,7 +138,7 @@ impl ExchangeApi {
         &self,
         amount: &str,
         destination: &str,
-        signer: &PrivateKeySigner,
+        signer: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let hyperliquid_chain = if self.http_client.is_mainnet() {
             "Mainnet".to_string()
@@ -166,11 +148,11 @@ impl ExchangeApi {
 
         let timestamp = next_nonce();
         let usd_send = UsdSend {
-            signature_chain_id: U256::from(421614),
+            signature_chain_id: 421614.into(),
             hyperliquid_chain,
             destination: destination.to_string(),
             amount: amount.to_string(),
-            time: U256::from(timestamp),
+            time: timestamp,
         };
         let signature = sign_typed_data(&usd_send, signer)?;
         let action = serde_json::to_value(Actions::UsdSend(usd_send))
@@ -183,7 +165,7 @@ impl ExchangeApi {
         &self,
         usdc: f64,
         to_perp: bool,
-        signer: &PrivateKeySigner,
+        signer: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         // payload expects usdc without decimals
         let usdc = (usdc * 1e6).round() as u64;
@@ -205,8 +187,8 @@ impl ExchangeApi {
         &self,
         is_deposit: bool,
         usd: u64,
-        vault_address: &Address,
-        signer: &PrivateKeySigner,
+        vault_address: &H160,
+        signer: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
 
@@ -220,14 +202,14 @@ impl ExchangeApi {
         let is_mainnet = self.http_client.is_mainnet();
         let signature = sign_l1_action(signer, connection_id, is_mainnet)?;
 
-        self.post(action, signature, timestamp, Some(vault_address))
+        self.post(action, signature, timestamp, Some(*vault_address))
             .await
     }
 
     pub async fn order(
         &self,
         order: ClientOrderRequest<'_>,
-        signer: &PrivateKeySigner,
+        signer: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_order(&[order], signer).await
     }
@@ -235,7 +217,7 @@ impl ExchangeApi {
     pub async fn order_with_builder(
         &self,
         order: ClientOrderRequest<'_>,
-        signer: &PrivateKeySigner,
+        signer: &LocalWallet,
         builder: BuilderInfo,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_order_with_builder(&[order], signer, builder)
@@ -245,7 +227,7 @@ impl ExchangeApi {
     pub async fn bulk_order(
         &self,
         orders: &[ClientOrderRequest<'_>],
-        signer: &PrivateKeySigner,
+        signer: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
 
@@ -270,7 +252,7 @@ impl ExchangeApi {
     pub async fn bulk_order_with_builder(
         &self,
         orders: &[ClientOrderRequest<'_>],
-        wallet: &PrivateKeySigner,
+        wallet: &LocalWallet,
         mut builder: BuilderInfo,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
@@ -298,7 +280,7 @@ impl ExchangeApi {
     pub async fn cancel(
         &self,
         cancel: ClientCancelRequest<'_>,
-        wallet: &PrivateKeySigner,
+        wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_cancel(&[cancel], wallet).await
     }
@@ -306,7 +288,7 @@ impl ExchangeApi {
     pub async fn bulk_cancel(
         &self,
         cancels: &[ClientCancelRequest<'_>],
-        wallet: &PrivateKeySigner,
+        wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
 
@@ -337,7 +319,7 @@ impl ExchangeApi {
     pub async fn modify(
         &self,
         modify: ClientModifyRequest<'_>,
-        wallet: &PrivateKeySigner,
+        wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_modify(&[modify], wallet).await
     }
@@ -345,7 +327,7 @@ impl ExchangeApi {
     pub async fn bulk_modify(
         &self,
         modifies: &[ClientModifyRequest<'_>],
-        wallet: &PrivateKeySigner,
+        wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
 
@@ -372,7 +354,7 @@ impl ExchangeApi {
     pub async fn cancel_by_cloid(
         &self,
         cancel: ClientCancelRequestCloid<'_>,
-        wallet: &PrivateKeySigner,
+        wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_cancel_by_cloid(&[cancel], wallet).await
     }
@@ -380,7 +362,7 @@ impl ExchangeApi {
     pub async fn bulk_cancel_by_cloid(
         &self,
         cancels: &[ClientCancelRequestCloid<'_>],
-        wallet: &PrivateKeySigner,
+        wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
 
@@ -413,7 +395,7 @@ impl ExchangeApi {
         leverage: u32,
         coin: &str,
         is_cross: bool,
-        wallet: &PrivateKeySigner,
+        wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
 
@@ -438,7 +420,7 @@ impl ExchangeApi {
         &self,
         amount: f64,
         coin: &str,
-        wallet: &PrivateKeySigner,
+        wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let amount = (amount * 1_000_000.0).round() as i64;
         let timestamp = next_nonce();
@@ -462,11 +444,11 @@ impl ExchangeApi {
 
     pub async fn approve_agent(
         &self,
-        wallet: &PrivateKeySigner,
-    ) -> Result<(SigningKey, ExchangeResponseStatus)> {
-        let random_signer = PrivateKeySigner::random();
-        let key = random_signer.credential().clone();
-        let address = random_signer.address();
+        wallet: &LocalWallet,
+    ) -> Result<(LocalWallet, ExchangeResponseStatus)> {
+        let mut rng = ethers::core::rand::thread_rng();
+        let key = LocalWallet::new(&mut rng);
+        let address = key.address();
 
         let hyperliquid_chain = if self.http_client.is_mainnet() {
             "Mainnet".to_string()
@@ -476,15 +458,16 @@ impl ExchangeApi {
 
         let nonce = next_nonce();
         let approve_agent = ApproveAgent {
-            signature_chain_id: U256::from(421614),
+            signature_chain_id: 421614.into(),
             hyperliquid_chain,
             agent_address: address,
             agent_name: Default::default(),
-            nonce: U256::from(nonce),
+            nonce,
         };
         let signature = sign_typed_data(&approve_agent, wallet)?;
         let action = serde_json::to_value(Actions::ApproveAgent(approve_agent))
             .map_err(|e| Error::JsonParse(e.to_string()))?;
+
         Ok((key, self.post(action, signature, nonce, None).await?))
     }
 
@@ -492,7 +475,7 @@ impl ExchangeApi {
         &self,
         amount: &str,
         destination: &str,
-        wallet: &PrivateKeySigner,
+        wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let hyperliquid_chain = if self.http_client.is_mainnet() {
             "Mainnet".to_string()
@@ -502,11 +485,11 @@ impl ExchangeApi {
 
         let timestamp = next_nonce();
         let withdraw = Withdraw3 {
-            signature_chain_id: U256::from(421614),
+            signature_chain_id: 421614.into(),
             hyperliquid_chain,
             destination: destination.to_string(),
             amount: amount.to_string(),
-            time: U256::from(timestamp),
+            time: timestamp,
         };
         let signature = sign_typed_data(&withdraw, wallet)?;
         let action = serde_json::to_value(Actions::Withdraw3(withdraw))
@@ -520,7 +503,7 @@ impl ExchangeApi {
         amount: &str,
         destination: &str,
         token: &str,
-        wallet: &PrivateKeySigner,
+        wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let hyperliquid_chain = if self.http_client.is_mainnet() {
             "Mainnet".to_string()
@@ -530,11 +513,11 @@ impl ExchangeApi {
 
         let timestamp = next_nonce();
         let spot_send = SpotSend {
-            signature_chain_id: U256::from(421614),
+            signature_chain_id: 421614.into(),
             hyperliquid_chain,
             destination: destination.to_string(),
             amount: amount.to_string(),
-            time: U256::from(timestamp),
+            time: timestamp,
             token: token.to_string(),
         };
         let signature = sign_typed_data(&spot_send, wallet)?;
@@ -547,7 +530,7 @@ impl ExchangeApi {
     pub async fn set_referrer(
         &self,
         code: String,
-        wallet: &PrivateKeySigner,
+        wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
 
@@ -563,9 +546,9 @@ impl ExchangeApi {
 
     pub async fn approve_builder_fee(
         &self,
-        builder: Address,
+        builder: H160,
         max_fee_rate: String,
-        signer: &PrivateKeySigner,
+        signer: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
 
@@ -576,11 +559,11 @@ impl ExchangeApi {
         };
 
         let approve_builder_fee = ApproveBuilderFee {
-            signature_chain_id: U256::from(421614),
+            signature_chain_id: 421614.into(),
             hyperliquid_chain,
             builder,
             max_fee_rate,
-            nonce: U256::from(timestamp),
+            nonce: timestamp,
         };
 
         let signature = sign_typed_data(&approve_builder_fee, signer)?;

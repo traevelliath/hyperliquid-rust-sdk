@@ -3,11 +3,8 @@ use crate::{
     helpers::{float_to_string_for_hashing, uuid_to_hex_string},
     prelude::*,
 };
-use alloy::signers::local::PrivateKeySigner;
-use serde::Serialize;
-use uuid::Uuid;
 
-#[derive(Default, Serialize, Debug, Clone)]
+#[derive(Default, serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BuilderInfo {
     #[serde(rename = "b")]
@@ -16,26 +13,26 @@ pub struct BuilderInfo {
     pub fee: u64,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 pub enum LimitTif {
     Alo,
     Ioc,
     Gtc,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum TriggerTpsl {
     Tp,
     Sl,
 }
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(serde::Serialize, Clone, Debug)]
 pub struct Limit {
     pub tif: LimitTif,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Trigger {
     pub is_market: bool,
@@ -43,14 +40,14 @@ pub struct Trigger {
     pub tpsl: TriggerTpsl,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum Order {
     Limit(Limit),
     Trigger(Trigger),
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OrderRequest {
     #[serde(rename = "a", alias = "asset")]
@@ -88,8 +85,8 @@ pub struct MarketOrderParams<'a> {
     pub sz: f64,
     pub px: Option<f64>,
     pub slippage: Option<f64>,
-    pub cloid: Option<Uuid>,
-    pub wallet: Option<&'a PrivateKeySigner>,
+    pub cloid: Option<uuid::Uuid>,
+    pub wallet: Option<&'a ethers::signers::LocalWallet>,
 }
 
 #[derive(Debug)]
@@ -98,8 +95,8 @@ pub struct MarketCloseParams<'a> {
     pub sz: Option<f64>,
     pub px: Option<f64>,
     pub slippage: Option<f64>,
-    pub cloid: Option<Uuid>,
-    pub wallet: Option<&'a PrivateKeySigner>,
+    pub cloid: Option<uuid::Uuid>,
+    pub wallet: Option<&'a ethers::signers::LocalWallet>,
 }
 
 #[derive(Debug)]
@@ -115,7 +112,7 @@ pub struct ClientOrderRequest<'a> {
     pub reduce_only: bool,
     pub limit_px: f64,
     pub sz: f64,
-    pub cloid: Option<Uuid>,
+    pub cloid: Option<uuid::Uuid>,
     pub order_type: ClientOrder,
 }
 

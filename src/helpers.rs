@@ -43,10 +43,10 @@ pub(crate) fn uuid_to_hex_string(uuid: Uuid) -> String {
     let hex_string = uuid
         .as_bytes()
         .iter()
-        .map(|byte| format!("{byte:02x}"))
+        .map(|byte| format!("{:02x}", byte))
         .collect::<Vec<String>>()
         .join("");
-    format!("0x{hex_string}")
+    format!("0x{}", hex_string)
 }
 
 pub fn truncate_float(float: f64, decimals: u32, round_up: bool) -> f64 {

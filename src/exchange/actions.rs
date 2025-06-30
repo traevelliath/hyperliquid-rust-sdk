@@ -1,34 +1,83 @@
 use crate::exchange::{cancel::CancelRequest, modify::ModifyRequest, order::OrderRequest};
-use alloy::{
-    dyn_abi::Eip712Domain,
-    primitives::{Address, U256},
-    sol,
-    sol_types::eip712_domain,
+pub(crate) use ethers::{
+    abi::{ParamType, Tokenizable, encode},
+    types::{
+        H160, U256,
+        transaction::{
+            eip712,
+            eip712::{EIP712Domain, Eip712, Eip712Error, encode_eip712_type},
+        },
+    },
+    utils::keccak256,
 };
 
-use serde::Serialize;
+use super::{BuilderInfo, cancel::CancelRequestCloid};
 
-use super::{cancel::CancelRequestCloid, order::BuilderInfo};
+pub(crate) const HYPERLIQUID_EIP_PREFIX: &str = "HyperliquidTransaction:";
 
-sol! {
-    #[derive(Serialize, Debug)]
-    #[serde(rename_all = "camelCase")]
-    struct UsdSend {
-        uint256 signature_chain_id;
-        string hyperliquid_chain;
-        string destination;
-        string amount;
-        uint256 time;
+fn eip_712_domain(chain_id: U256) -> EIP712Domain {
+    EIP712Domain {
+        name: Some("HyperliquidSignTransaction".to_string()),
+        version: Some("1".to_string()),
+        chain_id: Some(chain_id),
+        verifying_contract: Some(
+            "0x0000000000000000000000000000000000000000"
+                .parse()
+                .unwrap(),
+        ),
+        salt: None,
     }
+}
+
+#[derive(serde::Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UsdSend {
+    pub signature_chain_id: U256,
+    pub hyperliquid_chain: String,
+    pub destination: String,
+    pub amount: String,
+    pub time: u64,
 }
 
 impl Eip712 for UsdSend {
-    fn domain(&self) -> Eip712Domain {
-        eip_712_domain(self.signature_chain_id)
+    type Error = Eip712Error;
+
+    fn domain(&self) -> Result<EIP712Domain, Self::Error> {
+        Ok(eip_712_domain(self.signature_chain_id))
+    }
+
+    fn type_hash() -> Result<[u8; 32], Self::Error> {
+        Ok(eip712::make_type_hash(
+            format!("{HYPERLIQUID_EIP_PREFIX}UsdSend"),
+            &[
+                ("hyperliquidChain".to_string(), ParamType::String),
+                ("destination".to_string(), ParamType::String),
+                ("amount".to_string(), ParamType::String),
+                ("time".to_string(), ParamType::Uint(64)),
+            ],
+        ))
+    }
+
+    fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
+        let Self {
+            signature_chain_id: _,
+            hyperliquid_chain,
+            destination,
+            amount,
+            time,
+        } = self;
+        let items = vec![
+            ethers::abi::Token::Uint(Self::type_hash()?.into()),
+            encode_eip712_type(hyperliquid_chain.clone().into_token()),
+            encode_eip712_type(destination.clone().into_token()),
+            encode_eip712_type(amount.clone().into_token()),
+            encode_eip712_type(time.into_token()),
+        ];
+        Ok(keccak256(encode(&items)))
     }
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateLeverage {
     pub asset: u32,
@@ -36,7 +85,7 @@ pub struct UpdateLeverage {
     pub leverage: u32,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateIsolatedMargin {
     pub asset: u32,
@@ -44,7 +93,7 @@ pub struct UpdateIsolatedMargin {
     pub ntli: i64,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum Grouping {
     Na,
@@ -52,7 +101,7 @@ pub enum Grouping {
     PositionTpsl,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BulkOrder {
     pub orders: Vec<OrderRequest>,
@@ -61,164 +110,237 @@ pub struct BulkOrder {
     pub builder: Option<BuilderInfo>,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BulkCancel {
     pub cancels: Vec<CancelRequest>,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BulkModify {
     pub modifies: Vec<ModifyRequest>,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BulkCancelCloid {
     pub cancels: Vec<CancelRequestCloid>,
 }
 
-pub trait Eip712 {
-    fn domain(&self) -> Eip712Domain;
-}
-
-fn eip_712_domain(chain_id: U256) -> Eip712Domain {
-    let chain_id = chain_id.to::<u64>();
-    eip712_domain!(
-        name: "HyperliquidSignTransaction",
-        version: "1",
-        chain_id: chain_id,
-    )
-}
-
-#[derive(Serialize, Debug)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct ApproveAgentDto {
+pub struct ApproveAgent {
     pub signature_chain_id: U256,
     pub hyperliquid_chain: String,
-    pub agent_address: Address,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_address: H160,
     pub agent_name: Option<String>,
     pub nonce: u64,
 }
 
-sol! {
-    #[derive(Serialize, Debug)]
-    #[serde(rename_all = "camelCase")]
-    struct ApproveAgent {
-        uint256 signature_chain_id;
-        string hyperliquid_chain;
-        address agent_address;
-        string agent_name;
-        #[serde(serialize_with = "serialize_nonce")]
-        uint256 nonce;
-    }
-}
-
-pub fn serialize_nonce<S>(nonce: &U256, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    serializer.serialize_u128(nonce.to::<u128>())
-}
-
 impl Eip712 for ApproveAgent {
-    fn domain(&self) -> Eip712Domain {
-        eip_712_domain(self.signature_chain_id)
+    type Error = Eip712Error;
+
+    fn domain(&self) -> Result<EIP712Domain, Self::Error> {
+        Ok(eip_712_domain(self.signature_chain_id))
+    }
+
+    fn type_hash() -> Result<[u8; 32], Self::Error> {
+        Ok(eip712::make_type_hash(
+            format!("{HYPERLIQUID_EIP_PREFIX}ApproveAgent"),
+            &[
+                ("hyperliquidChain".to_string(), ParamType::String),
+                ("agentAddress".to_string(), ParamType::Address),
+                ("agentName".to_string(), ParamType::String),
+                ("nonce".to_string(), ParamType::Uint(64)),
+            ],
+        ))
+    }
+
+    fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
+        let Self {
+            signature_chain_id: _,
+            hyperliquid_chain,
+            agent_address,
+            agent_name,
+            nonce,
+        } = self;
+        let items = vec![
+            ethers::abi::Token::Uint(Self::type_hash()?.into()),
+            encode_eip712_type(hyperliquid_chain.clone().into_token()),
+            encode_eip712_type(agent_address.into_token()),
+            encode_eip712_type(agent_name.clone().unwrap_or_default().into_token()),
+            encode_eip712_type(nonce.into_token()),
+        ];
+        Ok(keccak256(encode(&items)))
     }
 }
 
-sol! {
-    #[derive(Debug, Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Withdraw3 {
-        string hyperliquid_chain;
-        uint256 signature_chain_id;
-        string amount;
-        uint256 time;
-        string destination;
-    }
+#[derive(serde::Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Withdraw3 {
+    pub hyperliquid_chain: String,
+    pub signature_chain_id: U256,
+    pub amount: String,
+    pub time: u64,
+    pub destination: String,
 }
 
 impl Eip712 for Withdraw3 {
-    fn domain(&self) -> Eip712Domain {
-        eip_712_domain(self.signature_chain_id)
+    type Error = Eip712Error;
+
+    fn domain(&self) -> Result<EIP712Domain, Self::Error> {
+        Ok(eip_712_domain(self.signature_chain_id))
+    }
+
+    fn type_hash() -> Result<[u8; 32], Self::Error> {
+        Ok(eip712::make_type_hash(
+            format!("{HYPERLIQUID_EIP_PREFIX}Withdraw"),
+            &[
+                ("hyperliquidChain".to_string(), ParamType::String),
+                ("destination".to_string(), ParamType::String),
+                ("amount".to_string(), ParamType::String),
+                ("time".to_string(), ParamType::Uint(64)),
+            ],
+        ))
+    }
+
+    fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
+        let Self {
+            signature_chain_id: _,
+            hyperliquid_chain,
+            amount,
+            time,
+            destination,
+        } = self;
+        let items = vec![
+            ethers::abi::Token::Uint(Self::type_hash()?.into()),
+            encode_eip712_type(hyperliquid_chain.clone().into_token()),
+            encode_eip712_type(destination.clone().into_token()),
+            encode_eip712_type(amount.clone().into_token()),
+            encode_eip712_type(time.into_token()),
+        ];
+        Ok(keccak256(encode(&items)))
     }
 }
 
-sol! {
-    #[derive(Serialize, Debug)]
-    #[serde(rename_all = "camelCase")]
-    struct SpotSend {
-        string hyperliquid_chain;
-        uint256 signature_chain_id;
-        string destination;
-        string token;
-        string amount;
-        uint256 time;
-    }
+#[derive(serde::Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SpotSend {
+    pub hyperliquid_chain: String,
+    pub signature_chain_id: U256,
+    pub destination: String,
+    pub token: String,
+    pub amount: String,
+    pub time: u64,
 }
 
 impl Eip712 for SpotSend {
-    fn domain(&self) -> Eip712Domain {
-        eip_712_domain(self.signature_chain_id)
+    type Error = Eip712Error;
+
+    fn domain(&self) -> Result<EIP712Domain, Self::Error> {
+        Ok(eip_712_domain(self.signature_chain_id))
+    }
+
+    fn type_hash() -> Result<[u8; 32], Self::Error> {
+        Ok(eip712::make_type_hash(
+            format!("{HYPERLIQUID_EIP_PREFIX}SpotSend"),
+            &[
+                ("hyperliquidChain".to_string(), ParamType::String),
+                ("destination".to_string(), ParamType::String),
+                ("token".to_string(), ParamType::String),
+                ("amount".to_string(), ParamType::String),
+                ("time".to_string(), ParamType::Uint(64)),
+            ],
+        ))
+    }
+
+    fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
+        let Self {
+            signature_chain_id: _,
+            hyperliquid_chain,
+            destination,
+            token,
+            amount,
+            time,
+        } = self;
+        let items = vec![
+            ethers::abi::Token::Uint(Self::type_hash()?.into()),
+            encode_eip712_type(hyperliquid_chain.clone().into_token()),
+            encode_eip712_type(destination.clone().into_token()),
+            encode_eip712_type(token.clone().into_token()),
+            encode_eip712_type(amount.clone().into_token()),
+            encode_eip712_type(time.into_token()),
+        ];
+        Ok(keccak256(encode(&items)))
     }
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SpotUser {
     pub class_transfer: ClassTransfer,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ClassTransfer {
     pub usdc: u64,
     pub to_perp: bool,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct VaultTransfer {
-    pub vault_address: Address,
+    pub vault_address: H160,
     pub is_deposit: bool,
     pub usd: u64,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SetReferrer {
     pub code: String,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct ApproveBuilderFeeDto {
+pub struct ApproveBuilderFee {
     pub max_fee_rate: String,
-    pub builder: String,
+    pub builder: H160,
     pub nonce: u64,
     pub signature_chain_id: U256,
     pub hyperliquid_chain: String,
 }
 
-sol! {
-    #[derive(Serialize, Debug)]
-    #[serde(rename_all = "camelCase")]
-    struct ApproveBuilderFee {
-        #[serde(skip_serializing)]
-        uint256 signature_chain_id;
-        string hyperliquid_chain;
-        string max_fee_rate;
-        address builder;
-        #[serde(serialize_with = "serialize_nonce")]
-        uint256 nonce;
-    }
-}
-
 impl Eip712 for ApproveBuilderFee {
-    fn domain(&self) -> Eip712Domain {
-        eip_712_domain(self.signature_chain_id)
+    type Error = Eip712Error;
+
+    fn domain(&self) -> Result<EIP712Domain, Self::Error> {
+        Ok(eip_712_domain(self.signature_chain_id))
+    }
+
+    fn type_hash() -> Result<[u8; 32], Self::Error> {
+        Ok(eip712::make_type_hash(
+            format!("{HYPERLIQUID_EIP_PREFIX}ApproveBuilderFee"),
+            &[
+                ("hyperliquidChain".to_string(), ParamType::String),
+                ("maxFeeRate".to_string(), ParamType::String),
+                ("builder".to_string(), ParamType::Address),
+                ("nonce".to_string(), ParamType::Uint(64)),
+            ],
+        ))
+    }
+
+    fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
+        let type_hash = Self::type_hash()?;
+        let items = vec![
+            ethers::abi::Token::Uint(type_hash.into()),
+            encode_eip712_type(self.hyperliquid_chain.clone().into_token()),
+            encode_eip712_type(self.max_fee_rate.clone().into_token()),
+            encode_eip712_type(self.builder.into_token()),
+            encode_eip712_type(self.nonce.into_token()),
+        ];
+        Ok(keccak256(encode(&items)))
     }
 }

@@ -36,10 +36,10 @@ pub enum Interval {
 pub enum Subscription {
     AllMids,
     Notification {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
     WebData2 {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
     Candle {
         coin: String,
@@ -52,25 +52,25 @@ pub enum Subscription {
         coin: String,
     },
     OrderUpdates {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
     UserEvents {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
     UserFills {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
     UserFundings {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
     UserNonFundingLedgerUpdates {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
     },
     ActiveAssetCtx {
         coin: String,
     },
     ActiveAssetData {
-        user: alloy::primitives::Address,
+        user: ethers::types::H160,
         coin: String,
     },
     Bbo {

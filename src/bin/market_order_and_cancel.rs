@@ -1,16 +1,23 @@
-use alloy::signers::local::PrivateKeySigner;
+use ethers::signers::LocalWallet;
 
 use hyperliquid_sdk::{
     ExchangeClient, ExchangeDataStatus, ExchangeResponseStatus, MarketCloseParams,
     MarketOrderParams, NetworkType,
 };
 use std::{thread::sleep, time::Duration};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::builder()
+                .with_default_directive(tracing::Level::DEBUG.into())
+                .from_env_lossy(),
+        )
+        .init();
     // Key was randomly generated for testing and shouldn't be used with any real funds
-    let wallet: PrivateKeySigner =
+    let wallet: LocalWallet =
         "e908f86dbb4d55ac876378565aafeabc187f6690f046459397b17d9b9a19688e"
             .parse()
             .unwrap();

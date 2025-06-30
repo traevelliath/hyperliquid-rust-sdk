@@ -1,4 +1,7 @@
-use alloy::{primitives::Address, signers::local::PrivateKeySigner};
+use ethers::{
+    signers::{LocalWallet, Signer},
+    types::H160,
+};
 
 use crate::{
     ClientCancelRequest, ClientLimit, ClientOrder, ClientOrderRequest, EPSILON, ExchangeClient,
@@ -20,7 +23,7 @@ pub struct MarketMakerInput {
     pub max_bps_diff: u16, // Max deviation before we cancel and put new orders on the book (in BPS)
     pub max_absolute_position_size: f64, // Absolute value of the max position we can take on
     pub decimals: u32,     // Decimals to round to for pricing
-    pub wallet: PrivateKeySigner,
+    pub wallet: LocalWallet,
 }
 
 #[derive(Debug)]
@@ -37,12 +40,12 @@ pub struct MarketMaker {
     pub latest_mid_price: f64,
     pub info_client: InfoClient,
     pub exchange_client: ExchangeClient,
-    pub user_address: Address,
+    pub user_address: H160,
 }
 
 impl MarketMaker {
     pub async fn new(input: MarketMakerInput) -> MarketMaker {
-        let user_address = input.wallet.address();
+        let user_address = input.wallet.address().into();
 
         let info_client = InfoClient::builder().network(NetworkType::Testnet).build();
         let exchange_client = ExchangeClient::builder()
@@ -183,17 +186,15 @@ impl MarketMaker {
     async fn place_order(&self, asset: &str, amount: f64, price: f64, is_buy: bool) -> (f64, u64) {
         let order = self
             .exchange_client
-            .order(
-                ClientOrderRequest {
-                    asset,
-                    is_buy,
-                    reduce_only: false,
-                    limit_px: price,
-                    sz: amount,
-                    cloid: None,
-                    order_type: ClientOrder::Limit(ClientLimit { tif: LimitTif::Gtc }),
-                },
-            )
+            .order(ClientOrderRequest {
+                asset,
+                is_buy,
+                reduce_only: false,
+                limit_px: price,
+                sz: amount,
+                cloid: None,
+                order_type: ClientOrder::Limit(ClientLimit { tif: LimitTif::Gtc }),
+            })
             .await;
         match order {
             Ok(order) => match order {
