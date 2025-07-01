@@ -85,7 +85,7 @@ pub struct MarketOrderParams<'a> {
     pub sz: f64,
     pub px: Option<f64>,
     pub slippage: Option<f64>,
-    pub cloid: Option<uuid::Uuid>,
+    pub cloid: Option<Cloid>,
     pub wallet: Option<&'a ethers::signers::LocalWallet>,
 }
 
@@ -95,7 +95,7 @@ pub struct MarketCloseParams<'a> {
     pub sz: Option<f64>,
     pub px: Option<f64>,
     pub slippage: Option<f64>,
-    pub cloid: Option<uuid::Uuid>,
+    pub cloid: Option<Cloid>,
     pub wallet: Option<&'a ethers::signers::LocalWallet>,
 }
 
@@ -106,13 +106,19 @@ pub enum ClientOrder {
 }
 
 #[derive(Debug)]
+pub enum Cloid {
+    Uuid(uuid::Uuid),
+    String(String),
+}
+
+#[derive(Debug)]
 pub struct ClientOrderRequest<'a> {
     pub asset: &'a str,
     pub is_buy: bool,
     pub reduce_only: bool,
     pub limit_px: f64,
     pub sz: f64,
-    pub cloid: Option<uuid::Uuid>,
+    pub cloid: Option<Cloid>,
     pub order_type: ClientOrder,
 }
 
@@ -135,7 +141,11 @@ impl<'a> ClientOrderRequest<'a> {
             .read(self.asset, |_, asset| *asset)
             .ok_or(Error::AssetNotFound)?;
 
-        let cloid = self.cloid.map(uuid_to_hex_string);
+        let cloid = match &self.cloid {
+            Some(Cloid::Uuid(uuid)) => Some(uuid_to_hex_string(*uuid)),
+            Some(Cloid::String(cloid)) => Some(cloid.clone()),
+            None => None,
+        };
 
         Ok(OrderRequest {
             asset,

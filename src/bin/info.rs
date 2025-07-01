@@ -8,6 +8,11 @@ const ADDRESS: &str = "0x97E626F1B3639c6B131527F586A101a56D365F46";
 async fn main() {
     tracing_subscriber::registry()
         .with(
+            tracing_subscriber::fmt::layer()
+                .event_format(tracing_subscriber::fmt::format().compact())
+                .with_timer(tracing_subscriber::fmt::time::LocalTime::rfc_3339()),
+        )
+        .with(
             tracing_subscriber::EnvFilter::builder()
                 .with_default_directive(tracing::Level::INFO.into())
                 .from_env_lossy(),

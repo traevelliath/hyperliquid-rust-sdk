@@ -9,6 +9,11 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 async fn main() {
     tracing_subscriber::registry()
         .with(
+            tracing_subscriber::fmt::layer()
+                .event_format(tracing_subscriber::fmt::format().compact())
+                .with_timer(tracing_subscriber::fmt::time::LocalTime::rfc_3339()),
+        )
+        .with(
             tracing_subscriber::EnvFilter::builder()
                 .with_default_directive(tracing::Level::DEBUG.into())
                 .from_env_lossy(),

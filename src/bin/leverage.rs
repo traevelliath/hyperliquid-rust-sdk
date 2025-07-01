@@ -7,6 +7,11 @@ async fn main() {
     // Example assumes you already have a position on ETH so you can update margin
     tracing_subscriber::registry()
         .with(
+            tracing_subscriber::fmt::layer()
+                .event_format(tracing_subscriber::fmt::format().compact())
+                .with_timer(tracing_subscriber::fmt::time::LocalTime::rfc_3339()),
+        )
+        .with(
             tracing_subscriber::EnvFilter::builder()
                 .with_default_directive(tracing::Level::DEBUG.into())
                 .from_env_lossy(),

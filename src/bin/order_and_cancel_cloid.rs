@@ -1,7 +1,7 @@
 use ethers::signers::LocalWallet;
 use hyperliquid_sdk::{
     ClientCancelRequestCloid, ClientLimit, ClientOrder, ClientOrderRequest, ExchangeClient,
-    LimitTif, NetworkType,
+    LimitTif, NetworkType, Cloid
 };
 use std::{thread::sleep, time::Duration};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -10,6 +10,11 @@ use uuid::Uuid;
 #[tokio::main]
 async fn main() {
     tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::fmt::layer()
+                .event_format(tracing_subscriber::fmt::format().compact())
+                .with_timer(tracing_subscriber::fmt::time::LocalTime::rfc_3339()),
+        )
         .with(
             tracing_subscriber::EnvFilter::builder()
                 .with_default_directive(tracing::Level::DEBUG.into())
@@ -36,7 +41,7 @@ async fn main() {
         reduce_only: false,
         limit_px: 1800.0,
         sz: 0.01,
-        cloid: Some(cloid),
+        cloid: Some(Cloid::Uuid(cloid)),
         order_type: ClientOrder::Limit(ClientLimit { tif: LimitTif::Gtc }),
     };
 
