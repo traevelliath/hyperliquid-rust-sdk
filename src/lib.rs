@@ -24,6 +24,6 @@ pub use meta::{AssetMeta, Meta, SpotAssetMeta, SpotMeta};
 pub use req::NetworkType;
 pub use ws::*;
 
-pub use ethers::*;
+pub use ethers;
 pub use uuid::Uuid;
-pub use reqwest::*;
+pub use reqwest;
