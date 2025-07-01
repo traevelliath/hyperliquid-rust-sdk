@@ -13,9 +13,9 @@ use crate::{
     },
     helpers::{next_nonce, uuid_to_hex_string},
     info::client::InfoClient,
-    prelude::*,
     req::{Endpoint, HttpClient},
     signature::sign_l1_action,
+    errors::Result,
 };
 use crate::{ClassTransfer, SpotSend, SpotUser, VaultTransfer, Withdraw3};
 

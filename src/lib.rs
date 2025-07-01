@@ -6,11 +6,11 @@ mod helpers;
 mod info;
 mod market_maker;
 mod meta;
-mod prelude;
 mod proxy_digest;
 mod req;
 mod signature;
 mod ws;
+
 
 pub use consts::{
     EPSILON, LOCAL_API_URL, MAINNET_API_URL, MAINNET_WS_URL, TESTNET_API_URL, TESTNET_WS_URL,
@@ -24,4 +24,6 @@ pub use meta::{AssetMeta, Meta, SpotAssetMeta, SpotMeta};
 pub use req::NetworkType;
 pub use ws::*;
 
+pub use ethers::*;
 pub use uuid::Uuid;
+pub use reqwest::*;

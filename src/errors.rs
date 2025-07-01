@@ -1,3 +1,5 @@
+pub(crate) type Result<T> = std::result::Result<T, Error>;
+
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum Error {
     // TODO: turn some embedded types into errors instead of strings

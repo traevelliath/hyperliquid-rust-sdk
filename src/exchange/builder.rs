@@ -1,4 +1,4 @@
-use crate::{BaseUrl, NetworkType, exchange::client::ExchangeClient, prelude::*, req::HttpClient};
+use crate::{BaseUrl, NetworkType, exchange::client::ExchangeClient, req::HttpClient, errors::Result};
 
 pub struct ExchangeClientBuilder {
     http_client: reqwest::Client,

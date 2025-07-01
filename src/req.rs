@@ -1,4 +1,4 @@
-use crate::{BaseUrl, Error, prelude::*};
+use crate::{BaseUrl, Error, errors::Result};
 
 #[derive(serde::Deserialize, Debug)]
 struct ErrorData {

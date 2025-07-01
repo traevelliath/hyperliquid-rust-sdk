@@ -8,9 +8,9 @@ use crate::{
         request::{CandleSnapshotRequest, InfoRequest},
     },
     meta::{Meta, SpotMeta, SpotMetaAndAssetCtxs},
-    prelude::*,
     req::{Endpoint, HttpClient},
     ws::{Subscription, WsManager},
+    errors::Result,
 };
 
 use ethers::types::H160;

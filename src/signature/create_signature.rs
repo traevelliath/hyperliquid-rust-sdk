@@ -4,7 +4,7 @@ use ethers::{
     types::{H256, Signature, U256, transaction::eip712::Eip712},
 };
 
-use crate::{Error, prelude::*, proxy_digest::Sha256Proxy, signature::agent::l1};
+use crate::{Error, proxy_digest::Sha256Proxy, signature::agent::l1, errors::Result};
 
 pub(crate) fn sign_l1_action(
     wallet: &LocalWallet,
