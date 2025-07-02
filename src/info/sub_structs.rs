@@ -1,4 +1,4 @@
-#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Copy)]
+#[derive(serde::Deserialize, serde::Serialize, Debug, PartialEq, Eq, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub enum LeverageType {
     Isolated,
@@ -9,7 +9,7 @@ pub enum LeverageType {
 #[serde(rename_all = "camelCase")]
 pub struct Leverage {
     #[serde(rename = "type")]
-    pub type_string: LeverageType,
+    pub margin_type: LeverageType,
     pub value: u32,
     #[serde(default, deserialize_with = "option_string_to_f64")]
     pub raw_usd: Option<f64>,
