@@ -105,7 +105,7 @@ pub enum ClientOrder {
     Trigger(ClientTrigger),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Cloid {
     Uuid(uuid::Uuid),
     String(String),
