@@ -53,7 +53,7 @@ async fn main() {
 
     let cancel = ClientCancelRequestCloid {
         asset: "ETH",
-        cloid,
+        cloid: Cloid::Uuid(cloid),
     };
 
     // This response will return an error if order was filled (since you can't cancel a filled order), otherwise it will cancel the order

@@ -483,7 +483,10 @@ impl ExchangeClient {
                 .ok_or(Error::AssetNotFound)?;
             transformed_cancels.push(CancelRequestCloid {
                 asset,
-                cloid: uuid_to_hex_string(cancel.cloid),
+                cloid: match &cancel.cloid {
+                    crate::Cloid::Uuid(cloid) => uuid_to_hex_string(*cloid),
+                    crate::Cloid::String(cloid) => cloid.clone(),
+                },
             });
         }
 
