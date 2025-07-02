@@ -1,14 +1,19 @@
 use super::{ClientOrderRequest, order::OrderRequest};
-use serde::Serialize;
+
+#[derive(serde::Serialize, Debug, Clone)]
+pub enum ModifyId {
+    Oid(u64),
+    Cloid(String),
+}
 
 #[derive(Debug)]
 pub struct ClientModifyRequest<'a> {
-    pub oid: u64,
+    pub id: ModifyId,
     pub order: ClientOrderRequest<'a>,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(serde::Serialize, Debug, Clone)]
 pub struct ModifyRequest {
-    pub oid: u64,
+    pub id: ModifyId,
     pub order: OrderRequest,
 }

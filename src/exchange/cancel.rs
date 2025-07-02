@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 #[derive(Debug)]
 pub struct ClientCancelRequest<'a> {
@@ -6,7 +6,7 @@ pub struct ClientCancelRequest<'a> {
     pub oid: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub struct CancelRequest {
     #[serde(rename = "a", alias = "asset")]
     pub asset: u32,
@@ -20,7 +20,7 @@ pub struct ClientCancelRequestCloid<'a> {
     pub cloid: crate::Cloid,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub struct CancelRequestCloid {
     pub asset: u32,
     pub cloid: String,

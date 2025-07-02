@@ -445,7 +445,7 @@ impl ExchangeClient {
         let mut transformed_modifies = Vec::new();
         for modify in modifies.iter() {
             transformed_modifies.push(ModifyRequest {
-                oid: modify.oid,
+                id: modify.id.clone(),
                 order: modify.order.to_order_request(&self.coin_to_asset)?,
             });
         }
