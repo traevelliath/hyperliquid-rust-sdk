@@ -209,7 +209,7 @@ pub struct SubAccountTransfer {
 #[serde(rename_all = "camelCase")]
 pub struct LedgerLiquidation {
     pub account_value: u64,
-    pub leverage_type: crate::LeverageType,
+    pub margin_type: crate::MarginType,
     pub liquidated_positions: Vec<LiquidatedPosition>,
 }
 
