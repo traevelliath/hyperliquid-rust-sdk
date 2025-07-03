@@ -183,3 +183,12 @@ impl std::str::FromStr for LimitTif {
         }
     }
 }
+
+impl std::fmt::Display for Cloid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Cloid::Uuid(uuid) => write!(f, "{}", uuid_to_hex_string(*uuid)),
+            Cloid::String(cloid) => write!(f, "{}", cloid),
+        }
+    }
+}
