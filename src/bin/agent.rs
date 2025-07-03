@@ -48,7 +48,7 @@ async fn main() {
         .unwrap();
 
     let order = ClientOrderRequest {
-        asset: "ETH",
+        asset: "ETH".to_string(),
         is_buy: true,
         reduce_only: false,
         limit_px: 1795.0,

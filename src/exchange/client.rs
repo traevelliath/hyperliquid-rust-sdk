@@ -201,7 +201,7 @@ impl ExchangeClient {
             .await?;
 
         let order = ClientOrderRequest {
-            asset: params.asset,
+            asset: params.asset.to_string(),
             is_buy: params.is_buy,
             reduce_only: false,
             limit_px: px,
@@ -224,7 +224,7 @@ impl ExchangeClient {
             .await?;
 
         let order = ClientOrderRequest {
-            asset: params.asset,
+            asset: params.asset.to_string(),
             is_buy: params.is_buy,
             reduce_only: false,
             limit_px: px,
@@ -267,7 +267,7 @@ impl ExchangeClient {
         let sz = round_to_decimals(params.sz.unwrap_or_else(|| szi.abs()), sz_decimals);
 
         let order = ClientOrderRequest {
-            asset: params.asset,
+            asset: params.asset.to_string(),
             is_buy: szi < 0.0,
             reduce_only: true,
             limit_px: px,
@@ -336,13 +336,13 @@ impl ExchangeClient {
         Ok((px, sz_decimals))
     }
 
-    pub async fn order(&self, order: ClientOrderRequest<'_>) -> Result<ExchangeResponseStatus> {
+    pub async fn order(&self, order: ClientOrderRequest) -> Result<ExchangeResponseStatus> {
         self.bulk_order(&[order]).await
     }
 
     pub async fn order_with_builder(
         &self,
-        order: ClientOrderRequest<'_>,
+        order: ClientOrderRequest,
         builder: BuilderInfo,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_order_with_builder(&[order], builder).await
@@ -350,7 +350,7 @@ impl ExchangeClient {
 
     pub async fn bulk_order(
         &self,
-        orders: &[ClientOrderRequest<'_>],
+        orders: &[ClientOrderRequest],
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
 
@@ -374,7 +374,7 @@ impl ExchangeClient {
 
     pub async fn bulk_order_with_builder(
         &self,
-        orders: &[ClientOrderRequest<'_>],
+        orders: &[ClientOrderRequest],
         mut builder: BuilderInfo,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
@@ -399,13 +399,13 @@ impl ExchangeClient {
         self.post(action, signature, timestamp).await
     }
 
-    pub async fn cancel(&self, cancel: ClientCancelRequest<'_>) -> Result<ExchangeResponseStatus> {
+    pub async fn cancel(&self, cancel: ClientCancelRequest) -> Result<ExchangeResponseStatus> {
         self.bulk_cancel(&[cancel]).await
     }
 
     pub async fn bulk_cancel(
         &self,
-        cancels: &[ClientCancelRequest<'_>],
+        cancels: &[ClientCancelRequest],
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
 
@@ -413,7 +413,7 @@ impl ExchangeClient {
         for cancel in cancels.iter() {
             let asset = self
                 .coin_to_asset
-                .read(cancel.asset, |_, asset| *asset)
+                .read(&cancel.asset, |_, asset| *asset)
                 .ok_or(Error::AssetNotFound)?;
             transformed_cancels.push(CancelRequest {
                 asset,
@@ -432,13 +432,13 @@ impl ExchangeClient {
         self.post(action, signature, timestamp).await
     }
 
-    pub async fn modify(&self, modify: ClientModifyRequest<'_>) -> Result<ExchangeResponseStatus> {
+    pub async fn modify(&self, modify: ClientModifyRequest) -> Result<ExchangeResponseStatus> {
         self.bulk_modify(&[modify]).await
     }
 
     pub async fn bulk_modify(
         &self,
-        modifies: &[ClientModifyRequest<'_>],
+        modifies: &[ClientModifyRequest],
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
 
@@ -464,14 +464,14 @@ impl ExchangeClient {
 
     pub async fn cancel_by_cloid(
         &self,
-        cancel: ClientCancelRequestCloid<'_>,
+        cancel: ClientCancelRequestCloid,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_cancel_by_cloid(&[cancel]).await
     }
 
     pub async fn bulk_cancel_by_cloid(
         &self,
-        cancels: &[ClientCancelRequestCloid<'_>],
+        cancels: &[ClientCancelRequestCloid],
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
 
@@ -479,7 +479,7 @@ impl ExchangeClient {
         for cancel in cancels.iter() {
             let asset = self
                 .coin_to_asset
-                .read(cancel.asset, |_, asset| *asset)
+                .read(&cancel.asset, |_, asset| *asset)
                 .ok_or(Error::AssetNotFound)?;
             transformed_cancels.push(CancelRequestCloid {
                 asset,

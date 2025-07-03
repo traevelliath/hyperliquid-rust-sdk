@@ -35,7 +35,7 @@ async fn main() {
         .unwrap();
 
     let order = ClientOrderRequest {
-        asset: "ETH",
+        asset: "ETH".to_string(),
         is_buy: true,
         reduce_only: false,
         limit_px: 1800.0,
@@ -73,7 +73,10 @@ async fn main() {
     // So you can see the order before it's cancelled
     sleep(Duration::from_secs(10));
 
-    let cancel = ClientCancelRequest { asset: "ETH", oid };
+    let cancel = ClientCancelRequest {
+        asset: "ETH".to_string(),
+        oid,
+    };
 
     // This response will return an error if order was filled (since you can't cancel a filled order), otherwise it will cancel the order
     let response = exchange_client.cancel(cancel).await.unwrap();

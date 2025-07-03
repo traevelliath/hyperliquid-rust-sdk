@@ -7,9 +7,9 @@ pub enum ModifyId {
 }
 
 #[derive(Debug)]
-pub struct ClientModifyRequest<'a> {
+pub struct ClientModifyRequest {
     pub id: ModifyId,
-    pub order: ClientOrderRequest<'a>,
+    pub order: ClientOrderRequest,
 }
 
 #[derive(serde::Serialize, Debug, Clone)]

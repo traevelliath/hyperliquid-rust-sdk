@@ -36,7 +36,7 @@ async fn main() {
     // Order and Cancel with cloid
     let cloid = Uuid::new_v4();
     let order = ClientOrderRequest {
-        asset: "ETH",
+        asset: "ETH".to_string(),
         is_buy: true,
         reduce_only: false,
         limit_px: 1800.0,
@@ -52,7 +52,7 @@ async fn main() {
     sleep(Duration::from_secs(10));
 
     let cancel = ClientCancelRequestCloid {
-        asset: "ETH",
+        asset: "ETH".to_string(),
         cloid: Cloid::Uuid(cloid),
     };
 

@@ -1,8 +1,8 @@
 use serde::Serialize;
 
 #[derive(Debug)]
-pub struct ClientCancelRequest<'a> {
-    pub asset: &'a str,
+pub struct ClientCancelRequest {
+    pub asset: String,
     pub oid: u64,
 }
 
@@ -15,8 +15,8 @@ pub struct CancelRequest {
 }
 
 #[derive(Debug)]
-pub struct ClientCancelRequestCloid<'a> {
-    pub asset: &'a str,
+pub struct ClientCancelRequestCloid {
+    pub asset: String,
     pub cloid: crate::Cloid,
 }
 

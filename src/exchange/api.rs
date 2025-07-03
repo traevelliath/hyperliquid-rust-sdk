@@ -208,7 +208,7 @@ impl ExchangeApi {
 
     pub async fn order(
         &self,
-        order: ClientOrderRequest<'_>,
+        order: ClientOrderRequest,
         signer: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_order(&[order], signer).await
@@ -216,7 +216,7 @@ impl ExchangeApi {
 
     pub async fn order_with_builder(
         &self,
-        order: ClientOrderRequest<'_>,
+        order: ClientOrderRequest,
         signer: &LocalWallet,
         builder: BuilderInfo,
     ) -> Result<ExchangeResponseStatus> {
@@ -226,7 +226,7 @@ impl ExchangeApi {
 
     pub async fn bulk_order(
         &self,
-        orders: &[ClientOrderRequest<'_>],
+        orders: &[ClientOrderRequest],
         signer: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
@@ -251,7 +251,7 @@ impl ExchangeApi {
 
     pub async fn bulk_order_with_builder(
         &self,
-        orders: &[ClientOrderRequest<'_>],
+        orders: &[ClientOrderRequest],
         wallet: &LocalWallet,
         mut builder: BuilderInfo,
     ) -> Result<ExchangeResponseStatus> {
@@ -279,7 +279,7 @@ impl ExchangeApi {
 
     pub async fn cancel(
         &self,
-        cancel: ClientCancelRequest<'_>,
+        cancel: ClientCancelRequest,
         wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_cancel(&[cancel], wallet).await
@@ -287,7 +287,7 @@ impl ExchangeApi {
 
     pub async fn bulk_cancel(
         &self,
-        cancels: &[ClientCancelRequest<'_>],
+        cancels: &[ClientCancelRequest],
         wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
@@ -296,7 +296,7 @@ impl ExchangeApi {
         for cancel in cancels.iter() {
             let asset = self
                 .coin_to_asset
-                .read(cancel.asset, |_, asset| *asset)
+                .read(&cancel.asset, |_, asset| *asset)
                 .ok_or(Error::AssetNotFound)?;
             transformed_cancels.push(CancelRequest {
                 asset,
@@ -318,7 +318,7 @@ impl ExchangeApi {
 
     pub async fn modify(
         &self,
-        modify: ClientModifyRequest<'_>,
+        modify: ClientModifyRequest,
         wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_modify(&[modify], wallet).await
@@ -326,7 +326,7 @@ impl ExchangeApi {
 
     pub async fn bulk_modify(
         &self,
-        modifies: &[ClientModifyRequest<'_>],
+        modifies: &[ClientModifyRequest],
         wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
@@ -353,7 +353,7 @@ impl ExchangeApi {
 
     pub async fn cancel_by_cloid(
         &self,
-        cancel: ClientCancelRequestCloid<'_>,
+        cancel: ClientCancelRequestCloid,
         wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         self.bulk_cancel_by_cloid(&[cancel], wallet).await
@@ -361,7 +361,7 @@ impl ExchangeApi {
 
     pub async fn bulk_cancel_by_cloid(
         &self,
-        cancels: &[ClientCancelRequestCloid<'_>],
+        cancels: &[ClientCancelRequestCloid],
         wallet: &LocalWallet,
     ) -> Result<ExchangeResponseStatus> {
         let timestamp = next_nonce();
@@ -370,7 +370,7 @@ impl ExchangeApi {
         for cancel in cancels.iter() {
             let asset = self
                 .coin_to_asset
-                .read(cancel.asset, |_, asset| *asset)
+                .read(&cancel.asset, |_, asset| *asset)
                 .ok_or(Error::AssetNotFound)?;
             transformed_cancels.push(CancelRequestCloid {
                 asset,

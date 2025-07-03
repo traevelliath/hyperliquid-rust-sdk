@@ -112,8 +112,8 @@ pub enum Cloid {
 }
 
 #[derive(Debug)]
-pub struct ClientOrderRequest<'a> {
-    pub asset: &'a str,
+pub struct ClientOrderRequest {
+    pub asset: String,
     pub is_buy: bool,
     pub reduce_only: bool,
     pub limit_px: f64,
@@ -122,7 +122,7 @@ pub struct ClientOrderRequest<'a> {
     pub order_type: ClientOrder,
 }
 
-impl<'a> ClientOrderRequest<'a> {
+impl ClientOrderRequest {
     pub(crate) fn to_order_request(
         &self,
         coin_to_asset: &scc::HashMap<String, u32>,
@@ -138,7 +138,7 @@ impl<'a> ClientOrderRequest<'a> {
             }),
         };
         let asset = coin_to_asset
-            .read(self.asset, |_, asset| *asset)
+            .read(&self.asset, |_, asset| *asset)
             .ok_or(Error::AssetNotFound)?;
 
         let cloid = match &self.cloid {

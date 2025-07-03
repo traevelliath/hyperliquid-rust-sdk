@@ -34,7 +34,7 @@ async fn main() {
         .unwrap();
 
     let order = ClientOrderRequest {
-        asset: "XYZTWO/USDC",
+        asset: "XYZTWO/USDC".to_string(),
         is_buy: true,
         reduce_only: false,
         limit_px: 0.00002378,
@@ -61,7 +61,7 @@ async fn main() {
     sleep(Duration::from_secs(10));
 
     let cancel = ClientCancelRequest {
-        asset: "HFUN/USDC",
+        asset: "HFUN/USDC".to_string(),
         oid,
     };
 
